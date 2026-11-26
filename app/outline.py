@@ -10,6 +10,8 @@ Good enough for sticker / die-cut outlines of already smoothed masks. It is not 
 purpose replacement for tools like potrace.
 """
 
+from collections.abc import Callable
+
 import numpy as np
 
 # Directions in screen coordinates (y grows downwards).
@@ -21,19 +23,19 @@ def _edges(mask: np.ndarray) -> dict[tuple[int, int], list[tuple[int, int]]]:
     m = np.pad(mask.astype(bool), 1)
     out: dict[tuple[int, int], list[tuple[int, int]]] = {}
 
-    def add(ys, xs, start, d):
-        for y, x in zip(ys.tolist(), xs.tolist()):
+    def add(ys: np.ndarray, xs: np.ndarray, start: tuple[int, int], d: tuple[int, int]) -> None:
+        for y, x in zip(ys.tolist(), xs.tolist(), strict=True):
             out.setdefault((x + start[0], y + start[1]), []).append(d)
 
     fg = m[1:-1, 1:-1]
     # Coordinates below are in the unpadded pixel grid: pixel (r, c) spans [c, c+1] x [r, r+1].
-    ys, xs = np.nonzero(fg & ~m[:-2, 1:-1])   # background above -> top edge, left to right
+    ys, xs = np.nonzero(fg & ~m[:-2, 1:-1])  # background above -> top edge, left to right
     add(ys, xs, (0, 0), RIGHT)
-    ys, xs = np.nonzero(fg & ~m[1:-1, 2:])    # background right -> right edge, downwards
+    ys, xs = np.nonzero(fg & ~m[1:-1, 2:])  # background right -> right edge, downwards
     add(ys, xs, (1, 0), DOWN)
-    ys, xs = np.nonzero(fg & ~m[2:, 1:-1])    # background below -> bottom edge, right to left
+    ys, xs = np.nonzero(fg & ~m[2:, 1:-1])  # background below -> bottom edge, right to left
     add(ys, xs, (1, 1), LEFT)
-    ys, xs = np.nonzero(fg & ~m[1:-1, :-2])   # background left -> left edge, upwards
+    ys, xs = np.nonzero(fg & ~m[1:-1, :-2])  # background left -> left edge, upwards
     add(ys, xs, (0, 1), UP)
     return out
 
@@ -51,15 +53,15 @@ def _loops(out: dict[tuple[int, int], list[tuple[int, int]]]) -> list[list[tuple
             if d is not None and len(options) > 1:
                 # At pixels touching diagonally, prefer turning right to keep shapes separate.
                 right = (-d[1], d[0])
-                nd = right if right in options else options[0]
+                new_dir = right if right in options else options[0]
             else:
-                nd = options[0]
-            options.remove(nd)
+                new_dir = options[0]
+            options.remove(new_dir)
             if not options:
                 del out[v]
-            if nd != d:
+            if new_dir != d:
                 pts.append(v)  # keep corners only
-            d = nd
+            d = new_dir
             v = (v[0] + d[0], v[1] + d[1])
             if v == start:
                 break
@@ -102,13 +104,12 @@ def _simplify_closed(pts: np.ndarray, eps: float) -> np.ndarray:
 
 def _densify(poly: np.ndarray, max_step: float) -> np.ndarray:
     """Add points along long straight runs so the smoothing spline can't overshoot at corners."""
-    out = []
+    out: list[np.ndarray] = []
     n = len(poly)
     for i in range(n):
         a, b = poly[i], poly[(i + 1) % n]
         steps = max(1, int(np.ceil(np.hypot(*(b - a)) / max_step)))
-        for t in range(steps):
-            out.append(a + (b - a) * (t / steps))
+        out.extend(a + (b - a) * (t / steps) for t in range(steps))
     return np.asarray(out)
 
 
@@ -125,7 +126,7 @@ def trace(mask: np.ndarray, min_area: float = 8.0, tolerance: float = 0.9, max_s
     return polys
 
 
-def smooth_path(poly: np.ndarray, fmt) -> str:
+def smooth_path(poly: np.ndarray, fmt: Callable[[np.ndarray], str]) -> str:
     """Closed Catmull-Rom spline through the polygon points, as SVG cubic Béziers."""
     n = len(poly)
     p = poly

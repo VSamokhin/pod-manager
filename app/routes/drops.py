@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -18,13 +18,15 @@ def get_drop(db: Session, drop_id: int) -> Drop:
 
 
 @router.get("/drops")
-def list_drops(request: Request, state: str = "", user: User = Depends(current_user), db: Session = Depends(get_db)):
+def list_drops(
+    request: Request, state: str = "", user: User = Depends(current_user), db: Session = Depends(get_db)
+) -> Response:
     states = db.scalars(select(DropState).order_by(DropState.sort_order, DropState.name)).all()
     stmt = select(Drop).options(selectinload(Drop.items).selectinload(DropImage.image), selectinload(Drop.state))
     if state.isdigit():
         stmt = stmt.where(Drop.state_id == int(state))
     drops = db.scalars(stmt.order_by(Drop.planned_date.desc(), Drop.id.desc())).all()
-    groups = [(s, [d for d in drops if d.state_id == s.id]) for s in states]
+    groups: list[tuple[DropState | None, list[Drop]]] = [(s, [d for d in drops if d.state_id == s.id]) for s in states]
     no_state = [d for d in drops if d.state_id is None]
     if no_state:
         groups.append((None, no_state))
@@ -40,15 +42,22 @@ def create_drop(
     state_id: str = Form(""),
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
-):
-    if state_id.isdigit():
-        sid = int(state_id)
+) -> Response:
+    chosen = db.get(DropState, int(state_id)) if state_id.isdigit() else None
+    sid: int | None
+    if chosen:
+        sid = chosen.id
     else:
         default = db.scalar(select(DropState).where(DropState.is_default.is_(True))) or db.scalar(
             select(DropState).order_by(DropState.sort_order)
         )
         sid = default.id if default else None
-    drop = Drop(name=name.strip()[:200] or "Untitled drop", description=description, planned_date=planned_date[:10], state_id=sid)
+    drop = Drop(
+        name=name.strip()[:200] or "Untitled drop",
+        description=description,
+        planned_date=planned_date[:10],
+        state_id=sid,
+    )
     db.add(drop)
     db.commit()
     flash(request, "Drop created.")
@@ -56,18 +65,30 @@ def create_drop(
 
 
 @router.get("/drops/{drop_id}")
-def drop_detail(request: Request, drop_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def drop_detail(
+    request: Request, drop_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)
+) -> Response:
     drop = get_drop(db, drop_id)
     states = db.scalars(select(DropState).order_by(DropState.sort_order, DropState.name)).all()
     goods = db.scalars(select(GoodsType).order_by(GoodsType.name)).all()
     in_drop = {it.image_id for it in drop.items}
-    candidates = [i for i in db.scalars(select(Image).order_by(Image.interesting.desc(), Image.id.desc())).all() if i.id not in in_drop]
+    candidates = [
+        i
+        for i in db.scalars(select(Image).order_by(Image.interesting.desc(), Image.id.desc())).all()
+        if i.id not in in_drop
+    ]
     goods_count: dict[str, int] = {}
     for it in drop.items:
         for g in it.goods:
             goods_count[g.name] = goods_count.get(g.name, 0) + 1
     return page(
-        request, "drop_detail.html", drop=drop, states=states, goods=goods, candidates=candidates, goods_count=goods_count
+        request,
+        "drop_detail.html",
+        drop=drop,
+        states=states,
+        goods=goods,
+        candidates=candidates,
+        goods_count=goods_count,
     )
 
 
@@ -81,19 +102,26 @@ def update_drop(
     state_id: str = Form(""),
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
-):
+) -> Response:
     drop = get_drop(db, drop_id)
     drop.name = name.strip()[:200] or drop.name
     drop.description = description
     drop.planned_date = planned_date[:10]
-    drop.state_id = int(state_id) if state_id.isdigit() and db.get(DropState, int(state_id)) else None
+    state = db.get(DropState, int(state_id)) if state_id.isdigit() else None
+    drop.state_id = state.id if state else None
     db.commit()
     flash(request, "Drop saved.")
     return redirect(f"/drops/{drop_id}")
 
 
 @router.post("/drops/{drop_id}/state")
-def set_state(request: Request, drop_id: int, state_id: int = Form(...), user: User = Depends(current_user), db: Session = Depends(get_db)):
+def set_state(
+    request: Request,
+    drop_id: int,
+    state_id: int = Form(...),
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> Response:
     drop = get_drop(db, drop_id)
     state = db.get(DropState, state_id)
     if not state:
@@ -105,7 +133,9 @@ def set_state(request: Request, drop_id: int, state_id: int = Form(...), user: U
 
 
 @router.post("/drops/{drop_id}/delete")
-def delete_drop(request: Request, drop_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def delete_drop(
+    request: Request, drop_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)
+) -> Response:
     if not user.is_admin:
         raise HTTPException(403, "Admins only")
     drop = get_drop(db, drop_id)
@@ -117,8 +147,12 @@ def delete_drop(request: Request, drop_id: int, user: User = Depends(current_use
 
 @router.post("/drops/{drop_id}/add")
 def add_to_drop(
-    request: Request, drop_id: int, ids: list[int] = Form(default=[]), user: User = Depends(current_user), db: Session = Depends(get_db)
-):
+    request: Request,
+    drop_id: int,
+    ids: list[int] = Form(default=[]),
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> Response:
     drop = get_drop(db, drop_id)
     images = db.scalars(select(Image).where(Image.id.in_(ids))).all() if ids else []
     n = add_images_to_drop(db, drop, images)
@@ -137,11 +171,11 @@ def update_item(
     position: int = Form(0),
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
-):
+) -> Response:
     item = db.get(DropImage, item_id)
     if not item or item.drop_id != drop_id:
         raise HTTPException(404)
-    item.goods = db.scalars(select(GoodsType).where(GoodsType.id.in_(goods))).all() if goods else []
+    item.goods = list(db.scalars(select(GoodsType).where(GoodsType.id.in_(goods)))) if goods else []
     item.notes = notes
     item.position = position
     db.commit()
@@ -150,7 +184,9 @@ def update_item(
 
 
 @router.post("/drops/{drop_id}/items/{item_id}/remove")
-def remove_item(request: Request, drop_id: int, item_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def remove_item(
+    request: Request, drop_id: int, item_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)
+) -> Response:
     item = db.get(DropImage, item_id)
     if not item or item.drop_id != drop_id:
         raise HTTPException(404)

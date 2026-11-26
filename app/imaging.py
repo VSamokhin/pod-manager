@@ -12,7 +12,7 @@ import numpy as np
 from PIL import Image as PILImage
 from PIL import ImageDraw, ImageFilter, ImageOps
 
-from . import config, trace
+from . import config, outline
 
 PILImage.MAX_IMAGE_PIXELS = 400_000_000  # large print files are expected
 
@@ -66,8 +66,7 @@ def open_full(kind: str, path: Path) -> PILImage.Image:
     """Full-resolution PIL image with EXIF orientation applied."""
     if kind == "vector":
         return _render_svg(path.read_bytes())
-    im = PILImage.open(path)
-    im = ImageOps.exif_transpose(im)
+    im: PILImage.Image = ImageOps.exif_transpose(PILImage.open(path))
     if im.mode not in ("RGB", "RGBA", "L", "LA"):
         im = im.convert("RGBA" if "A" in im.getbands() or im.info.get("transparency") is not None else "RGB")
     return im
@@ -106,9 +105,9 @@ def embed_data_uri(kind: str, mime: str, path: Path) -> str:
             orientation = im.getexif().get(0x0112, 1)
         if orientation == 1:
             return f"data:{mime};base64," + base64.b64encode(path.read_bytes()).decode()
-    im = open_full(kind, path)
+    full = open_full(kind, path)
     buf = io.BytesIO()
-    im.save(buf, "PNG")
+    full.save(buf, "PNG")
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
@@ -139,7 +138,9 @@ def contour_path(image_id: int, cache_key: str, width: int, height: int, dilate:
     mask = _alpha_mask(src)
     scale = min(1.0, MASK_MAX / max(mask.size))
     if scale < 1.0:
-        mask = mask.resize((max(1, round(mask.width * scale)), max(1, round(mask.height * scale))), PILImage.BILINEAR)
+        mask = mask.resize(
+            (max(1, round(mask.width * scale)), max(1, round(mask.height * scale))), PILImage.Resampling.BILINEAR
+        )
         mask = mask.point(lambda v: 255 if v > 127 else 0)
     k = mask.width / width  # mask px per image px
     r = max(0.0, dilate * k)
@@ -148,7 +149,7 @@ def contour_path(image_id: int, cache_key: str, width: int, height: int, dilate:
     padded.paste(mask, (pad, pad))
 
     # Dilate: repeated 3x3 max filters (alternating square / approx-cross ≈ octagon), then round off.
-    steps = int(round(r))
+    steps = round(r)
     for i in range(steps):
         padded = padded.filter(ImageFilter.MaxFilter(3))
         if i % 2:
@@ -166,7 +167,7 @@ def contour_path(image_id: int, cache_key: str, width: int, height: int, dilate:
     if not arr.any():
         return ""
 
-    def fmt(p) -> str:
+    def fmt(p: np.ndarray) -> str:
         return f"{(p[0] - pad) / k:.2f},{(p[1] - pad) / k:.2f}"
 
-    return " ".join(trace.smooth_path(poly, fmt) for poly in trace.trace(arr))
+    return " ".join(outline.smooth_path(poly, fmt) for poly in outline.trace(arr))

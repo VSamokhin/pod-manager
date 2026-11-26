@@ -23,7 +23,7 @@ def verify_password(pw: str, hashed: str) -> bool:
         return False
 
 
-class LoginRequired(Exception):
+class LoginRequiredError(Exception):
     pass
 
 
@@ -32,7 +32,7 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User:
     user = db.get(User, uid) if uid else None
     if not user or not user.is_active:
         request.session.clear()
-        raise LoginRequired()
+        raise LoginRequiredError()
     request.state.user = user
     return user
 

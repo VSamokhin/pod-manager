@@ -9,6 +9,7 @@ THUMBS_DIR = FILES_DIR / "thumbs"
 PREVIEWS_DIR = FILES_DIR / "previews"
 DB_PATH = DATA_DIR / "pod.db"
 
+APP_VERSION = os.environ.get("APP_VERSION", "dev")
 MAX_UPLOAD_MB = int(os.environ.get("POD_MAX_UPLOAD_MB", "200"))
 THUMB_SIZE = 400
 PREVIEW_SIZE = 1600

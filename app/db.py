@@ -1,5 +1,7 @@
 import json
-from datetime import datetime, timezone
+from collections.abc import Iterator
+from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import (
     Boolean,
@@ -14,13 +16,14 @@ from sqlalchemy import (
     create_engine,
     event,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
 from . import config
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class Base(DeclarativeBase):
@@ -149,17 +152,17 @@ class Template(Base):
             return {}
 
 
-engine = None
-SessionLocal = None
+engine: Engine | None = None
+SessionLocal: sessionmaker[Session] | None = None
 
 
-def init_engine(url: str | None = None):
-    global engine, SessionLocal
+def init_engine(url: str | None = None) -> Engine:
+    global engine, SessionLocal  # noqa: PLW0603 - module-level engine, configured once at startup
     config.ensure_dirs()
     engine = create_engine(url or f"sqlite:///{config.DB_PATH}", connect_args={"check_same_thread": False})
 
     @event.listens_for(engine, "connect")
-    def _fk_on(dbapi_conn, _):
+    def _fk_on(dbapi_conn: Any, _record: Any) -> None:
         cur = dbapi_conn.cursor()
         cur.execute("PRAGMA foreign_keys=ON")
         cur.execute("PRAGMA journal_mode=WAL")
@@ -170,8 +173,14 @@ def init_engine(url: str | None = None):
     return engine
 
 
-def get_db():
-    db = SessionLocal()
+def session_factory() -> sessionmaker[Session]:
+    if SessionLocal is None:
+        raise RuntimeError("init_engine() has not been called")
+    return SessionLocal
+
+
+def get_db() -> Iterator[Session]:
+    db = session_factory()()
     try:
         yield db
     finally:

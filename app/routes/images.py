@@ -1,14 +1,17 @@
 import re
+from collections.abc import Sequence
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
-from sqlalchemy import or_, select
+from sqlalchemy import ColumnElement, or_, select
 from sqlalchemy.orm import Session, selectinload
+from starlette.datastructures import FormData
 
 from .. import config, imaging, render
 from ..auth import current_user
 from ..db import Drop, DropImage, GoodsType, Image, Template, User, get_db
-from ..web import flash, page, redirect
+from ..web import flash, form_str, page, redirect
 
 router = APIRouter()
 
@@ -22,7 +25,7 @@ def get_image(db: Session, image_id: int) -> Image:
     return img
 
 
-def create_image(db: Session, data: bytes, filename: str, user: User | None, **extra) -> Image:
+def create_image(db: Session, data: bytes, filename: str, user: User | None, **extra: Any) -> Image:
     kind, mime = imaging.classify(filename)
     stored = imaging.store_original(data, filename)
     stem = re.sub(r"[_\-]+", " ", filename.rsplit(".", 1)[0]).strip()
@@ -42,7 +45,7 @@ def create_image(db: Session, data: bytes, filename: str, user: User | None, **e
         try:
             img.width, img.height = imaging.make_derivatives(img.id, kind, imaging.original_path(stored))
             img.has_preview = True
-        except Exception as exc:  # corrupt or unsupported content: keep the file, flag no preview
+        except Exception as exc:  # noqa: BLE001 - Pillow/Cairo raise many types on corrupt files; keep the file
             img.kind = "other"
             img.notes = f"Could not read image: {exc}"[:500]
     return img
@@ -67,11 +70,18 @@ def list_images(
     sort: str = "new",
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
-):
+) -> Response:
     stmt = select(Image).options(selectinload(Image.drop_links))
     if q:
         like = f"%{q}%"
-        stmt = stmt.where(or_(Image.title.ilike(like), Image.original_filename.ilike(like), Image.notes.ilike(like), Image.tags.ilike(like)))
+        stmt = stmt.where(
+            or_(
+                Image.title.ilike(like),
+                Image.original_filename.ilike(like),
+                Image.notes.ilike(like),
+                Image.tags.ilike(like),
+            )
+        )
     if kind in ("raster", "vector", "other"):
         stmt = stmt.where(Image.kind == kind)
     if flag == "interesting":
@@ -88,7 +98,9 @@ def list_images(
         stmt = stmt.where(~Image.drop_links.any())
     elif drop.isdigit():
         stmt = stmt.where(Image.drop_links.any(DropImage.drop_id == int(drop)))
-    stmt = stmt.order_by({"old": Image.id.asc(), "title": Image.title.asc()}.get(sort, Image.id.desc()))
+    orders: dict[str, ColumnElement[Any]] = {"old": Image.id.asc(), "title": Image.title.asc(), "new": Image.id.desc()}
+    order = orders.get(sort, orders["new"])
+    stmt = stmt.order_by(order)
     images = db.scalars(stmt).all()
     drops = db.scalars(select(Drop).options(selectinload(Drop.state)).order_by(Drop.id.desc())).all()
     return page(
@@ -108,7 +120,7 @@ async def upload(
     tags: str = Form(""),
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
-):
+) -> Response:
     ok, errors = 0, []
     limit = config.MAX_UPLOAD_MB * 1024 * 1024
     for f in files:
@@ -139,7 +151,7 @@ def bulk(
     drop_id: str = Form(""),
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
-):
+) -> Response:
     images = db.scalars(select(Image).where(Image.id.in_(ids))).all() if ids else []
     if not images:
         flash(request, "Select at least one image.", "error")
@@ -171,7 +183,7 @@ def bulk(
     return redirect(request.headers.get("referer") or "/images")
 
 
-def add_images_to_drop(db: Session, drop: Drop, images: list[Image]) -> int:
+def add_images_to_drop(db: Session, drop: Drop, images: Sequence[Image]) -> int:
     existing = {it.image_id for it in drop.items}
     pos = max((it.position for it in drop.items), default=0)
     added = 0
@@ -188,7 +200,9 @@ def add_images_to_drop(db: Session, drop: Drop, images: list[Image]) -> int:
 
 
 @router.get("/images/{image_id}")
-def image_detail(request: Request, image_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def image_detail(
+    request: Request, image_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)
+) -> Response:
     img = get_image(db, image_id)
     drops = db.scalars(select(Drop).order_by(Drop.id.desc())).all()
     tpls = db.scalars(select(Template).order_by(Template.name)).all()
@@ -206,7 +220,7 @@ def image_update(
     outcome: str = Form("unknown"),
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
-):
+) -> Response:
     img = get_image(db, image_id)
     img.title = title.strip()[:255]
     img.tags = ", ".join(t.strip() for t in tags.split(",") if t.strip())[:500]
@@ -220,8 +234,12 @@ def image_update(
 
 @router.post("/images/{image_id}/add-to-drop")
 def image_add_to_drop(
-    request: Request, image_id: int, drop_id: int = Form(...), user: User = Depends(current_user), db: Session = Depends(get_db)
-):
+    request: Request,
+    image_id: int,
+    drop_id: int = Form(...),
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> Response:
     img = get_image(db, image_id)
     drop = db.get(Drop, drop_id)
     if not drop:
@@ -233,7 +251,9 @@ def image_add_to_drop(
 
 
 @router.post("/images/{image_id}/delete")
-def image_delete(request: Request, image_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def image_delete(
+    request: Request, image_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)
+) -> Response:
     if not user.is_admin:
         raise HTTPException(403, "Admins only")
     img = get_image(db, image_id)
@@ -248,7 +268,9 @@ def image_delete(request: Request, image_id: int, user: User = Depends(current_u
 
 
 @router.get("/media/{image_id}/{variant}")
-def media(image_id: int, variant: str, download: int = 0, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def media(
+    image_id: int, variant: str, download: int = 0, user: User = Depends(current_user), db: Session = Depends(get_db)
+) -> Response:
     img = get_image(db, image_id)
     headers = {"Cache-Control": "private, max-age=86400"}
     if variant == "thumb" and img.has_preview:
@@ -272,8 +294,8 @@ def media(image_id: int, variant: str, download: int = 0, user: User = Depends(c
 # ------------------------------------------------------------------ templates applied to images
 
 
-def _params_from_form(form) -> dict:
-    params = {}
+def _params_from_form(form: FormData) -> dict[str, Any]:
+    params: dict[str, Any] = {}
     for key in render.DEFAULT_PARAMS:
         if key in render.BOOLEAN:
             params[key] = form.get(key) in ("on", "1", "true")
@@ -284,8 +306,12 @@ def _params_from_form(form) -> dict:
 
 @router.get("/images/{image_id}/apply")
 def apply_page(
-    request: Request, image_id: int, template_id: int | None = None, user: User = Depends(current_user), db: Session = Depends(get_db)
-):
+    request: Request,
+    image_id: int,
+    template_id: int | None = None,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> Response:
     img = get_image(db, image_id)
     if not img.has_preview:
         flash(request, "Templates can only be applied to raster or SVG images.", "error")
@@ -298,32 +324,40 @@ def apply_page(
 
 
 @router.post("/api/preview")
-async def api_preview(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+async def api_preview(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
     form = await request.form()
-    img = get_image(db, int(form.get("image_id", 0)))
+    image_id = form_str(form, "image_id")
+    img = get_image(db, int(image_id) if image_id.isdigit() else 0)
     if not img.has_preview:
         raise HTTPException(400, "No preview for this file type")
-    svg, w, h = render.compose_svg(img, _params_from_form(form), href=f"/media/{img.id}/preview", title=img.display_title)
+    svg, w, h = render.compose_svg(
+        img, _params_from_form(form), href=f"/media/{img.id}/preview", title=img.display_title
+    )
     return Response(svg, media_type="image/svg+xml", headers={"X-Size": f"{w:.0f}x{h:.0f}"})
 
 
 @router.post("/images/{image_id}/export")
-async def export(request: Request, image_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+async def export(
+    request: Request, image_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)
+) -> Response:
     form = await request.form()
     img = get_image(db, image_id)
     params = _params_from_form(form)
-    fmt = form.get("format", "png")
+    fmt = form_str(form, "format", "png")
+    if fmt not in ("png", "pdf", "svg"):
+        raise HTTPException(400, "Unknown format")
     try:
-        width_mm = float(form.get("width_mm") or 0) or None
-        dpi = int(form.get("dpi") or 300)
+        width_mm = float(form_str(form, "width_mm") or 0) or None
+        dpi = int(form_str(form, "dpi") or 300)
     except ValueError:
-        raise HTTPException(400, "Invalid size")
+        raise HTTPException(400, "Invalid size") from None
     href = imaging.embed_data_uri(img.kind, img.mime, imaging.original_path(img.stored_filename))
     svg, w, h = render.compose_svg(img, params, href=href, title=img.display_title)
 
-    if form.get("action") == "save":
-        tpl_id = form.get("template_id")
-        name = f"{img.display_title} ({db.get(Template, int(tpl_id)).name})" if tpl_id and tpl_id.isdigit() and db.get(Template, int(tpl_id)) else f"{img.display_title} (render)"
+    if form_str(form, "action") == "save":
+        tpl_id = form_str(form, "template_id")
+        tpl = db.get(Template, int(tpl_id)) if tpl_id.isdigit() else None
+        name = f"{img.display_title} ({tpl.name})" if tpl else f"{img.display_title} (render)"
         # Keep px units so the render keeps its full resolution when reused.
         new = create_image(
             db,
@@ -332,7 +366,7 @@ async def export(request: Request, image_id: int, user: User = Depends(current_u
             user,
             title=name[:255],
             parent_id=img.id,
-            template_id=int(tpl_id) if tpl_id and tpl_id.isdigit() else None,
+            template_id=tpl.id if tpl else None,
             tags=img.tags,
         )
         db.commit()
@@ -341,4 +375,6 @@ async def export(request: Request, image_id: int, user: User = Depends(current_u
 
     data, mime = render.export(svg, w, h, fmt, width_mm, dpi)
     safe = re.sub(r"[^\w\-]+", "_", img.display_title).strip("_")[:60] or f"image{img.id}"
-    return Response(data, media_type=mime, headers={"Content-Disposition": f'attachment; filename="{safe}-print.{fmt}"'})
+    return Response(
+        data, media_type=mime, headers={"Content-Disposition": f'attachment; filename="{safe}-print.{fmt}"'}
+    )

@@ -11,7 +11,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ALLOWED_LGPL = {"cairosvg"}
-FORBIDDEN = re.compile(r"\b(A?GPL|GNU (Affero )?General Public|SSPL|Server Side Public|EUPL|CC-BY-NC|Commons Clause)", re.I)
+FORBIDDEN = re.compile(
+    r"\b(A?GPL|GNU (Affero )?General Public|SSPL|Server Side Public|EUPL|CC-BY-NC|Commons Clause)", re.I
+)
 
 
 def _norm(name: str) -> str:
@@ -27,8 +29,8 @@ def _license_text(dist: metadata.Distribution) -> str:
 
 def _runtime_closure() -> dict[str, metadata.Distribution]:
     todo = []
-    for line in (ROOT / "requirements.txt").read_text().splitlines():
-        line = line.split("#")[0].strip()
+    for raw in (ROOT / "requirements.txt").read_text().splitlines():
+        line = raw.split("#")[0].strip()
         if line:
             todo.append(_norm(re.split(r"[\[<>=!~; ]", line)[0]))
     seen: dict[str, metadata.Distribution] = {}

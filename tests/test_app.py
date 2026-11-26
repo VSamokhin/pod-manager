@@ -11,11 +11,14 @@ os.environ["POD_DATA_DIR"] = tempfile.mkdtemp(prefix="pod-test-")
 os.environ["POD_ADMIN_USERNAME"] = "admin"
 os.environ["POD_ADMIN_PASSWORD"] = "admin-pass-123"
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from app.main import app  # noqa: E402
+from app.main import app
 
-SVG = b'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><circle cx="50" cy="50" r="40" fill="red"/><script>alert(1)</script></svg>'
+SVG = (
+    b'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">'
+    b'<circle cx="50" cy="50" r="40" fill="red"/><script>alert(1)</script></svg>'
+)
 
 
 def png_bytes(alpha=True) -> bytes:
@@ -77,10 +80,13 @@ def test_upload_flag_and_drop_flow(client):
     assert client.get(f"/media/{pdf_id}/thumb").status_code == 404
 
     # Flags
-    r = client.post(f"/images/{png_id}", data={"title": "Red Planet", "tags": "space", "notes": "", "interesting": "1", "outcome": "successful"})
+    r = client.post(
+        f"/images/{png_id}",
+        data={"title": "Red Planet", "tags": "space", "notes": "", "interesting": "1", "outcome": "successful"},
+    )
     assert "Saved." in r.text
     r = client.get("/images?flag=interesting")
-    assert "Red Planet" in r.text and "title=\"logo\"" not in r.text
+    assert "Red Planet" in r.text and 'title="logo"' not in r.text
 
     # Drop with default state
     r = client.post("/drops", data={"name": "Autumn"})
@@ -90,7 +96,9 @@ def test_upload_flag_and_drop_flow(client):
     assert "Added 2 image(s)" in r.text
     item_id = int(re.search(r'id="item-(\d+)"', r.text).group(1))
     goods_ids = re.findall(r'name="goods" value="(\d+)"', r.text)[:2]
-    r = client.post(f"/drops/{drop_id}/items/{item_id}", data={"goods": goods_ids, "notes": "front print", "position": "1"})
+    r = client.post(
+        f"/drops/{drop_id}/items/{item_id}", data={"goods": goods_ids, "notes": "front print", "position": "1"}
+    )
     assert "Planned goods" in r.text and "front print" in r.text
 
     released = re.search(r'name="state_id" value="(\d+)">\s*<button title="Move to Released"', r.text).group(1)
@@ -107,31 +115,59 @@ def test_templates_preview_and_export(client):
     tpl_ids = re.findall(r'<option value="(\d+)"', r.text)
     assert tpl_ids
 
-    base = {"image_id": str(png_id), "padding": "5", "border_width": "1", "frame_radius": "5", "image_radius": "3",
-            "title_text": "{title}", "outline_mode": "contour", "outline_width": "4", "cutline": "on"}
+    base = {
+        "image_id": str(png_id),
+        "padding": "5",
+        "border_width": "1",
+        "frame_radius": "5",
+        "image_radius": "3",
+        "title_text": "{title}",
+        "outline_mode": "contour",
+        "outline_width": "4",
+        "cutline": "on",
+    }
     r = client.post("/api/preview", data=base)
     assert r.status_code == 200 and r.text.startswith("<svg") and "Red Planet" in r.text and "<path" in r.text
 
-    for fmt, mime, magic in [("png", "image/png", b"\x89PNG"), ("pdf", "application/pdf", b"%PDF"), ("svg", "image/svg+xml", b"<svg")]:
-        r = client.post(f"/images/{png_id}/export", data={**base, "format": fmt, "dpi": "150", "width_mm": "100", "action": "download"})
+    for fmt, mime, magic in [
+        ("png", "image/png", b"\x89PNG"),
+        ("pdf", "application/pdf", b"%PDF"),
+        ("svg", "image/svg+xml", b"<svg"),
+    ]:
+        r = client.post(
+            f"/images/{png_id}/export",
+            data={**base, "format": fmt, "dpi": "150", "width_mm": "100", "action": "download"},
+        )
         assert r.status_code == 200, r.text
         assert r.headers["content-type"].startswith(mime) and r.content.startswith(magic)
-    png = PILImage.open(io.BytesIO(r.content if False else client.post(f"/images/{png_id}/export", data={**base, "format": "png", "dpi": "254", "width_mm": "100", "action": "download"}).content))
+    r = client.post(
+        f"/images/{png_id}/export",
+        data={**base, "format": "png", "dpi": "254", "width_mm": "100", "action": "download"},
+    )
+    png = PILImage.open(io.BytesIO(r.content))
     assert png.width == 1000  # 100 mm at 254 dpi
 
-    r = client.post(f"/images/{png_id}/export", data={**base, "format": "png", "action": "save", "template_id": tpl_ids[0]})
+    r = client.post(
+        f"/images/{png_id}/export", data={**base, "format": "png", "action": "save", "template_id": tpl_ids[0]}
+    )
     assert "Saved as a new image" in r.text and "Made from" in r.text
 
 
 def test_admin_and_roles(client):
     login(client)
-    r = client.post("/admin/users", data={"username": "alice", "password": "alice-pass-1", "role": "user", "is_active": "1"})
+    r = client.post(
+        "/admin/users", data={"username": "alice", "password": "alice-pass-1", "role": "user", "is_active": "1"}
+    )
     assert "User saved." in r.text
-    r = client.post("/admin/goods", data={"name": "Phone case", "print_width_mm": "70", "print_height_mm": "140", "active": "1"})
+    r = client.post(
+        "/admin/goods", data={"name": "Phone case", "print_width_mm": "70", "print_height_mm": "140", "active": "1"}
+    )
     assert "Phone case" in r.text
     r = client.post("/admin/states", data={"name": "In review", "color": "#ff0000", "sort_order": "5"})
     assert "In review" in r.text
-    r = client.post("/admin/templates/new", data={"name": "Thick black", "border_width": "3", "border_color": "#000000"})
+    r = client.post(
+        "/admin/templates/new", data={"name": "Thick black", "border_width": "3", "border_color": "#000000"}
+    )
     assert "Template saved." in r.text
     r = client.post("/admin/templates/new", data={"name": "Thick black"})
     assert "already taken" in r.text
