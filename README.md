@@ -11,7 +11,20 @@ A small self-hosted web app for managing artwork for a print-on-demand business.
 
 Stack: Python 3.13, FastAPI, Jinja2 templates, SQLite, Pillow, CairoSVG, NumPy. One container, no external services.
 
-## Run with Docker Compose
+## Run the published image
+
+Images are published to GHCR on GitHub-hosted runners and signed with cosign (keyless):
+
+| Tag | Updated when |
+|---|---|
+| `ghcr.io/vsamokhin/pod-manager:latest`, `:X.Y.Z`, `:X.Y` | a release is published |
+| `ghcr.io/vsamokhin/pod-manager:edge` | every push to `main`, or a manual run of *Publish image* on a branch |
+
+[`deploy/`](deploy/) has a compose file that runs production (`:latest`, port 8080) and a preview (`:edge`, port 8081) side by side with separate data, plus `update.sh` for cron: it pulls new images, backs up the production database before an update, and recreates only what changed. The server pulls; CI never needs access to it.
+
+Verify an image: `cosign verify ghcr.io/vsamokhin/pod-manager:latest --certificate-identity-regexp 'https://github.com/VSamokhin/pod-manager/' --certificate-oidc-issuer https://token.actions.githubusercontent.com`
+
+## Build and run with Docker Compose
 
 ```bash
 git clone <this repo> pod-manager && cd pod-manager
@@ -70,16 +83,19 @@ The app speaks plain HTTP on port 8000. For access outside your LAN, put it behi
 
 All template sizes are percentages of the image's shorter side, so one template works for a 600 px sketch and a 6000 px print file alike. The composition is a single SVG with the original file embedded at full resolution, so exports keep the source quality. Titles use fonts installed in the container (DejaVu and Liberation families, both free for commercial use). The text `{title}` in a title is replaced with the image's title.
 
-The **Follow shape (sticker)** outline traces the image's transparency (PNG alpha or SVG) into a smooth vector path with the project's own small tracer (`app/trace.py`), fills holes, and grows it by the outline width. Images without transparency get a rounded rectangle. The optional cut line is drawn as a thin stroke in a separate colour (magenta by default) on the outer edge.
+The **Follow shape (sticker)** outline traces the image's transparency (PNG alpha or SVG) into a smooth vector path with the project's own small tracer (`app/outline.py`), fills holes, and grows it by the outline width. Images without transparency get a rounded rectangle. The optional cut line is drawn as a thin stroke in a separate colour (magenta by default) on the outer edge.
 
 ## Development
 
 ```bash
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
+pre-commit install
 POD_DATA_DIR=./data POD_ADMIN_PASSWORD=dev-password uvicorn app.main:app --reload
-pytest -q
+pytest --cov
 ```
+
+Branch naming, versioning, releases and the quality gates are described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Cairo must be installed on the host for CairoSVG (`apt install libcairo2`, `brew install cairo`).
 
@@ -91,7 +107,7 @@ app/
   auth.py         password hashing, role checks, first-run seeding
   db.py           SQLAlchemy models
   imaging.py      ingest, thumbnails/previews, contour mask
-  trace.py        bitmap → smooth vector outline
+  outline.py      bitmap → smooth vector outline
   render.py       template parameters → SVG, PNG/PDF/SVG export
   routes/         images, drops, admin
   templates/      Jinja2 pages

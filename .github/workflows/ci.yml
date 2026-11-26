@@ -1,0 +1,175 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
+
+jobs:
+  lint:
+    name: Lint & static checks (pre-commit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Run pre-commit hooks
+        uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+        env:
+          # Branch rule is for local commits; tests and audit run as separate jobs below.
+          SKIP: no-commit-to-branch,pytest,pip-audit
+
+  test:
+    name: Tests, coverage & licence gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Install system libraries and fonts
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libcairo2 fonts-dejavu-core fonts-liberation2
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Run tests (fails below the coverage threshold in pyproject.toml)
+        run: python -m pytest --cov --cov-report=term --cov-report=xml --cov-report=html --junitxml=junit.xml
+      - name: Coverage summary
+        if: always()
+        run: |
+          {
+            echo '### Coverage'
+            echo '```'
+            python -m coverage report --skip-covered --skip-empty || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Licence report of runtime dependencies
+        if: always()
+        run: |
+          pip install pip-licenses==5.5.5
+          pip-licenses --from=mixed --format=markdown --order=license \
+            --packages $(pip install --dry-run --quiet --report - -r requirements.txt | python -c "import json,sys; print(' '.join(i['metadata']['name'] for i in json.load(sys.stdin)['install']))") \
+            > licenses.md || true
+          { echo '### Runtime dependency licences'; cat licenses.md; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: test-reports
+          path: |
+            coverage.xml
+            htmlcov/
+            junit.xml
+            licenses.md
+          retention-days: 14
+
+  audit:
+    name: Dependency vulnerabilities (pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install pip-audit==2.10.1
+      - run: pip-audit -r requirements.txt -r requirements-dev.txt --progress-spinner off --desc
+
+  sast:
+    name: Security scan (bandit → code scanning)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install "bandit[toml,sarif]==1.9.4"
+      - name: Bandit (fails on medium or higher)
+        run: |
+          bandit -c pyproject.toml -r app -f sarif -o bandit.sarif || true
+          bandit -c pyproject.toml -r app --severity-level medium --confidence-level medium
+      - uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        if: always() && hashFiles('bandit.sarif') != ''
+        with:
+          sarif_file: bandit.sarif
+          category: bandit
+
+  docker:
+    name: Docker build & image scan (Trivy)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          push: false
+          tags: pod-manager:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test the container
+        run: |
+          docker run -d --name pod -p 8000:8000 -e POD_ADMIN_PASSWORD=ci-password-123 pod-manager:ci
+          for _ in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/healthz && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8000/healthz
+          curl -fsS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8000/login | grep -q 200
+          docker logs pod
+      - name: Trivy image scan (SARIF)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: pod-manager:ci
+          format: sarif
+          output: trivy-image.sarif
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH,MEDIUM
+      - uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        if: always() && hashFiles('trivy-image.sarif') != ''
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
+      - name: Trivy gate (fails on fixable CRITICAL/HIGH)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: pod-manager:ci
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          skip-setup-trivy: true
+      - name: Trivy config scan (Dockerfile, compose, workflows)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: .
+          exit-code: "1"
+          severity: CRITICAL,HIGH
+          skip-setup-trivy: true

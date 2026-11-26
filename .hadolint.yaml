@@ -1,0 +1,4 @@
+# Debian package versions change with every security update of the base image; pinning them would
+# break builds without making them safer. The base image itself is pinned by digest (Dependabot).
+ignored:
+  - DL3008

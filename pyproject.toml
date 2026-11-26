@@ -1,0 +1,95 @@
+[project]
+name = "pod-manager"
+version = "0.1.0"
+description = "Self-hosted artwork manager for print-on-demand: organise images into drops, apply vector frames and sticker outlines, export print-ready files."
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Viktor Samokhin" }]
+requires-python = ">=3.13"
+
+# ---------------------------------------------------------------- ruff (lint + format)
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+src = ["."]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",     # pycodestyle
+    "F",          # pyflakes
+    "I",          # isort
+    "N",          # pep8-naming
+    "UP",         # pyupgrade
+    "B",          # bugbear
+    "A",          # builtins shadowing
+    "C4",         # comprehensions
+    "C90",        # mccabe complexity
+    "S",          # bandit security rules
+    "BLE",        # blind except
+    "SIM",        # simplify
+    "RET",        # return statements
+    "PIE", "PERF", "ISC", "T20", "LOG", "G",
+    "PT",         # pytest style
+    "PTH",        # pathlib
+    "DTZ",        # timezone-aware datetimes
+    "ERA",        # commented-out code
+    "PLE", "PLW", "PLC",
+    "RUF",
+]
+ignore = [
+    "B008",     # FastAPI's Depends()/Form() defaults are the intended pattern
+    "PLC0415",  # local imports are used deliberately for optional/slow modules
+    "RUF001", "RUF002", "RUF003",  # typographic quotes and × in UI strings are intended
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "PLR2004", "E402", "PT018"]
+"app/render.py" = ["N806"]  # W/H are the conventional names in the layout maths
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.format]
+quote-style = "double"
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.13"
+files = ["app"]
+check_untyped_defs = true
+disallow_incomplete_defs = true
+no_implicit_optional = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+strict_equality = true
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
+module = ["cairosvg.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------- tests & coverage
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+filterwarnings = ["ignore::DeprecationWarning:fastapi.testclient", "ignore:Using `httpx`"]
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true
+exclude_also = ["if __name__ == .__main__.:", "raise NotImplementedError"]
+
+# ---------------------------------------------------------------- bandit
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "venv"]
+
+# ---------------------------------------------------------------- codespell
+[tool.codespell]
+skip = "*.lock,*.svg,.git,data"
+ignore-words-list = "colour,ue"

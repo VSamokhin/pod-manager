@@ -1,0 +1,30 @@
+# Example deployment from the published images: production and a preview side by side.
+# Copy this folder to the server (e.g. ~/docker/pod-manager), create prod.env and preview.env from
+# ../.env.example, then:  docker compose up -d
+# update.sh (run from cron) pulls new images and recreates only what changed.
+name: pod-manager
+
+services:
+  prod:
+    image: ghcr.io/vsamokhin/pod-manager:latest   # moves only when a release is published
+    restart: unless-stopped
+    env_file: prod.env
+    ports: ["8080:8000"]
+    volumes: ["./prod-data:/data"]
+    read_only: true
+    tmpfs: ["/tmp", "/home/pod/.cache"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 2g
+
+  preview:
+    image: ghcr.io/vsamokhin/pod-manager:edge     # every push to main (or a branch on request)
+    restart: unless-stopped
+    env_file: preview.env
+    ports: ["8081:8000"]
+    volumes: ["./preview-data:/data"]              # separate data: previews never touch real artwork
+    read_only: true
+    tmpfs: ["/tmp", "/home/pod/.cache"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 1g

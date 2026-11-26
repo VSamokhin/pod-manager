@@ -1,0 +1,15 @@
+# Labels PRs automatically (release-drafter/autolabeler). The version labels decide the next release:
+# feature/* -> minor, bugfix/* and chore/* -> patch. "major" is only ever added by hand.
+autolabeler:
+  - labels: [feature, minor]
+    branch: ['/^feature\/.+/']
+  - labels: [bugfix, patch]
+    branch: ['/^bugfix\/.+/']
+  - labels: [chore, patch]
+    branch: ['/^chore\/.+/']
+  - labels: [dependencies, patch]
+    branch: ['/^dependabot\/.+/']
+  - labels: [ci]
+    files: [".github/**", ".pre-commit-config.yaml"]
+  - labels: [documentation]
+    files: ["*.md", "docs/**"]

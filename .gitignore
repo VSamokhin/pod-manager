@@ -5,3 +5,7 @@ venv/
 data/
 .env
 .pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+junit.xml

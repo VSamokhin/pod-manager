@@ -1,0 +1,41 @@
+# Release Drafter keeps one draft release up to date on every push to main.
+# The next version is computed from the labels of the merged PRs:
+#   major -> X.0.0 (only after the maintainer approves; serious, incompatible changes)
+#   minor -> 0.X.0 (new features; feature/* branches get it automatically)
+#   patch -> 0.0.X (fixes and maintenance; bugfix/* and chore/* branches get it automatically)
+# Publishing the draft (by the maintainer) creates the vX.Y.Z tag.
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+
+categories:
+  - title: "💥 Breaking changes"
+    labels: [major]
+  - title: "🚀 Features"
+    labels: [feature, minor]
+  - title: "🐛 Fixes"
+    labels: [bugfix]
+  - title: "🔒 Security"
+    labels: [security]
+  - title: "🧰 Maintenance"
+    labels: [chore, ci, documentation, dependencies]
+
+exclude-labels: [skip-changelog]
+change-template: "- $TITLE (#$NUMBER)"
+change-title-escapes: '\<*_&'
+no-changes-template: "- No user-facing changes"
+
+version-resolver:
+  major:
+    labels: [major]
+  minor:
+    labels: [minor]
+  patch:
+    labels: [patch]
+  default: patch
+
+template: |
+  ## Changes
+
+  $CHANGES
+
+  **Full changelog:** https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION

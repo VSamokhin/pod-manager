@@ -3,7 +3,7 @@
 {% block mainclass %}narrow{% endblock %}
 {% block content %}
 <h1>Your account</h1>
-<p class="muted">Signed in as <strong>{{ user.username }}</strong> ({{ user.role }}).</p>
+<p class="muted">Signed in as <strong>{{ user.username }}</strong> ({{ user.role }}). POD Manager version {{ APP_VERSION }}.</p>
 <div class="card">
   <h2>Change password</h2>
   <form method="post" action="/account/password" class="stack">
