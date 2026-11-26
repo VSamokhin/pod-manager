@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Apply template · {{ img.display_title }}{% endblock %}
+{% block mainclass %}wide{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/images">Images</a> / <a href="/images/{{ img.id }}">{{ img.display_title }}</a> /</p>
+<div class="head"><h1>Apply template</h1></div>
+
+<div class="editor">
+  <div class="preview-pane">
+    <div class="preview checker" id="preview" data-image-id="{{ img.id }}"></div>
+    <p class="muted small" id="preview-size"></p>
+  </div>
+
+  <form method="post" action="/images/{{ img.id }}/export" id="tplform" class="side">
+    <input type="hidden" name="image_id" value="{{ img.id }}">
+    <input type="hidden" name="template_id" value="{{ tpl.id if tpl else '' }}">
+    <div class="card">
+      <label>Template
+        <select onchange="location.href='/images/{{ img.id }}/apply?template_id=' + this.value">
+          {% for t in templates %}<option value="{{ t.id }}" {{ 'selected' if tpl and t.id == tpl.id }}>{{ t.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <p class="muted small">Adjustments below apply to this export only. {% if user.is_admin %}<a href="/admin/templates/{{ tpl.id if tpl else 'new' }}">Edit the template</a> to change it for everyone.{% endif %}</p>
+    </div>
+
+    <div class="card">{% include "_template_fields.html" %}</div>
+
+    <div class="card stack">
+      <h3>Export for print</h3>
+      <label>Goods
+        <select id="goods-select">
+          <option value="">Native size (source px at DPI)</option>
+          {% for g in goods %}<option data-w="{{ g.print_width_mm or '' }}" data-h="{{ g.print_height_mm or '' }}">{{ g.name }}{% if g.print_width_mm %} ({{ g.print_width_mm|int }} × {{ (g.print_height_mm or 0)|int }} mm){% endif %}</option>{% endfor %}
+        </select>
+      </label>
+      <div class="row">
+        <label>Width (mm) <input type="number" name="width_mm" step="0.1" min="0" placeholder="native"></label>
+        <label>DPI <input type="number" name="dpi" value="300" min="36" max="1200"></label>
+        <label>Format
+          <select name="format"><option value="png">PNG</option><option value="pdf">PDF</option><option value="svg">SVG</option></select>
+        </label>
+      </div>
+      <p class="muted small" id="export-info"></p>
+      <div class="row">
+        <button class="primary" name="action" value="download">Download</button>
+        <button name="action" value="save">Save as new image</button>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}<script>PodPreview.init({ w: {{ img.width }}, h: {{ img.height }} });</script>{% endblock %}

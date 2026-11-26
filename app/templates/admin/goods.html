@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Goods types · Admin{% endblock %}
+{% block content %}
+<h1>Goods types</h1>
+{% include "admin/_nav.html" %}
+<p class="muted">Things you print on. The print area is used to size exports.</p>
+<table class="tbl">
+  <thead><tr><th>Name</th><th>Print area (mm, W × H)</th><th>Description</th><th>Active</th><th></th></tr></thead>
+  <tbody>
+  {% for g in goods %}
+  <tr>
+    <td colspan="4">
+      <form method="post" action="/admin/goods" class="row">
+        <input type="hidden" name="id" value="{{ g.id }}">
+        <input name="name" value="{{ g.name }}" required>
+        <input type="number" step="0.1" name="print_width_mm" value="{{ g.print_width_mm or '' }}" class="narrow-num" placeholder="W">
+        <input type="number" step="0.1" name="print_height_mm" value="{{ g.print_height_mm or '' }}" class="narrow-num" placeholder="H">
+        <input name="description" value="{{ g.description }}" class="grow">
+        <label class="check"><input type="checkbox" name="active" value="1" {{ 'checked' if g.active }}> active</label>
+        <button>Save</button>
+      </form>
+    </td>
+    <td><form method="post" action="/admin/goods/{{ g.id }}/delete"><button class="danger" data-confirm="Delete {{ g.name }}? It is removed from all drops.">Delete</button></form></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<div class="card">
+  <h3>Add goods type</h3>
+  <form method="post" action="/admin/goods" class="row">
+    <input name="name" placeholder="e.g. Phone case" required>
+    <input type="number" step="0.1" name="print_width_mm" class="narrow-num" placeholder="W mm">
+    <input type="number" step="0.1" name="print_height_mm" class="narrow-num" placeholder="H mm">
+    <input name="description" placeholder="Description" class="grow">
+    <input type="hidden" name="active" value="1">
+    <button class="primary">Add</button>
+  </form>
+</div>
+{% endblock %}

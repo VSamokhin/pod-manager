@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}POD Manager{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='1' y='1' width='14' height='14' rx='3' fill='%23d9480f'/></svg>">
+</head>
+<body>
+{% if user %}
+<header class="topbar">
+  <a class="brand" href="/images">POD Manager</a>
+  <nav>
+    <a href="/images" class="{{ 'on' if request.url.path.startswith('/images') }}">Images</a>
+    <a href="/drops" class="{{ 'on' if request.url.path.startswith('/drops') }}">Drops</a>
+    {% if user.is_admin %}<a href="/admin" class="{{ 'on' if request.url.path.startswith('/admin') }}">Admin</a>{% endif %}
+  </nav>
+  <div class="me">
+    <a href="/account">{{ user.username }}</a>{% if user.is_admin %} <span class="pill">admin</span>{% endif %}
+    <form method="post" action="/logout" class="inline"><button class="link">Log out</button></form>
+  </div>
+</header>
+{% endif %}
+<main class="{% block mainclass %}{% endblock %}">
+  {% for kind, msg in messages %}<div class="flash {{ kind }}">{{ msg }}</div>{% endfor %}
+  {% block content %}{% endblock %}
+</main>
+<script src="/static/app.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

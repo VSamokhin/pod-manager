@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Drop states · Admin{% endblock %}
+{% block content %}
+<h1>Drop states</h1>
+{% include "admin/_nav.html" %}
+<p class="muted">States a drop moves through. The default state is used for new drops.</p>
+<table class="tbl">
+  <thead><tr><th>Name</th><th>Colour</th><th>Order</th><th>Default</th><th>Drops</th><th></th></tr></thead>
+  <tbody>
+  {% for s in states %}
+  <tr>
+    <td colspan="4">
+      <form method="post" action="/admin/states" class="row">
+        <input type="hidden" name="id" value="{{ s.id }}">
+        <input name="name" value="{{ s.name }}" required>
+        <input type="color" name="color" value="{{ s.color }}">
+        <input type="number" name="sort_order" value="{{ s.sort_order }}" class="narrow-num">
+        <label class="check"><input type="checkbox" name="is_default" value="1" {{ 'checked' if s.is_default }}> default</label>
+        <button>Save</button>
+      </form>
+    </td>
+    <td>{{ usage.get(s.id, 0) }}</td>
+    <td>
+      <form method="post" action="/admin/states/{{ s.id }}/delete" class="row">
+        {% if usage.get(s.id, 0) %}
+        <select name="move_to" title="Move its drops to">
+          {% for o in states if o.id != s.id %}<option value="{{ o.id }}">move drops to {{ o.name }}</option>{% endfor %}
+          <option value="">leave drops without state</option>
+        </select>
+        {% endif %}
+        <button class="danger" data-confirm="Delete state {{ s.name }}?">Delete</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<div class="card">
+  <h3>Add state</h3>
+  <form method="post" action="/admin/states" class="row">
+    <input name="name" placeholder="e.g. In review" required>
+    <input type="color" name="color" value="#f59e0b">
+    <input type="number" name="sort_order" value="{{ (states|map(attribute='sort_order')|max or 0) + 10 }}" class="narrow-num">
+    <label class="check"><input type="checkbox" name="is_default" value="1"> default</label>
+    <button class="primary">Add</button>
+  </form>
+</div>
+{% endblock %}

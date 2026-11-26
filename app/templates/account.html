@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Account · POD Manager{% endblock %}
+{% block mainclass %}narrow{% endblock %}
+{% block content %}
+<h1>Your account</h1>
+<p class="muted">Signed in as <strong>{{ user.username }}</strong> ({{ user.role }}).</p>
+<div class="card">
+  <h2>Change password</h2>
+  <form method="post" action="/account/password" class="stack">
+    <label>Current password <input name="current" type="password" autocomplete="current-password" required></label>
+    <label>New password <input name="new" type="password" minlength="8" autocomplete="new-password" required></label>
+    <button class="primary">Change password</button>
+  </form>
+</div>
+{% endblock %}

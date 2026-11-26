@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Templates · Admin{% endblock %}
+{% block content %}
+<div class="head"><h1>Templates</h1><a class="btn primary" href="/admin/templates/new">New template</a></div>
+{% include "admin/_nav.html" %}
+<p class="muted">Vector frames applied to images: borders, corner rounding, outlines (including shape-following sticker outlines) and titles.</p>
+<table class="tbl">
+  <thead><tr><th>Name</th><th>Description</th><th></th></tr></thead>
+  <tbody>
+  {% for t in templates %}
+  <tr>
+    <td><a href="/admin/templates/{{ t.id }}">{{ t.name }}</a></td>
+    <td class="muted">{{ t.description }}</td>
+    <td class="row">
+      <a class="btn" href="/admin/templates/{{ t.id }}">Edit</a>
+      <form method="post" action="/admin/templates/{{ t.id }}/duplicate" class="inline"><button>Duplicate</button></form>
+      <form method="post" action="/admin/templates/{{ t.id }}/delete" class="inline"><button class="danger" data-confirm="Delete template {{ t.name }}?">Delete</button></form>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

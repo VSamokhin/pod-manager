@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ tpl.name if tpl else 'New template' }} · Templates{% endblock %}
+{% block mainclass %}wide{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/admin/templates">Templates</a> /</p>
+<div class="head"><h1>{{ tpl.name if tpl else 'New template' }}</h1></div>
+<div class="editor">
+  <div class="preview-pane">
+    {% if img %}
+    <div class="preview checker" id="preview" data-image-id="{{ img.id }}"></div>
+    <form method="get" class="row">
+      <label>Preview with
+        <select name="sample" onchange="this.form.submit()">
+          {% for s in samples %}<option value="{{ s.id }}" {{ 'selected' if s.id == img.id }}>{{ s.display_title }}</option>{% endfor %}
+        </select>
+      </label>
+    </form>
+    <p class="muted small" id="preview-size"></p>
+    {% else %}
+    <p class="empty">Upload an image to see a live preview here.</p>
+    {% endif %}
+  </div>
+  <form method="post" action="/admin/templates/{{ tpl.id if tpl else 'new' }}" id="tplform" class="side">
+    <div class="card stack">
+      <label>Name <input name="name" value="{{ tpl.name if tpl else '' }}" required></label>
+      <label>Description <input name="description" value="{{ tpl.description if tpl else '' }}"></label>
+    </div>
+    <div class="card">{% include "_template_fields.html" %}</div>
+    <button class="primary">Save template</button>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}{% if img %}<script>PodPreview.init({ w: {{ img.width }}, h: {{ img.height }} });</script>{% endif %}{% endblock %}

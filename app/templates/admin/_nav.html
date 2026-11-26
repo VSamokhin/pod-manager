@@ -1,0 +1,7 @@
+<nav class="subnav">
+  <a href="/admin" class="{{ 'on' if request.url.path == '/admin' }}">Overview</a>
+  <a href="/admin/states" class="{{ 'on' if request.url.path.startswith('/admin/states') }}">Drop states</a>
+  <a href="/admin/goods" class="{{ 'on' if request.url.path.startswith('/admin/goods') }}">Goods types</a>
+  <a href="/admin/templates" class="{{ 'on' if request.url.path.startswith('/admin/templates') }}">Templates</a>
+  <a href="/admin/users" class="{{ 'on' if request.url.path.startswith('/admin/users') }}">Users</a>
+</nav>

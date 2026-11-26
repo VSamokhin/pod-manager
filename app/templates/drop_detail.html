@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}{{ drop.name }} · Drops{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/drops">Drops</a> /</p>
+<div class="head">
+  <h1>{{ drop.name }} {% if drop.state %}<span class="state" style="--c: {{ drop.state.color }}">{{ drop.state.name }}</span>{% endif %}</h1>
+  <div class="actions">
+    {% for s in states if not drop.state or s.id != drop.state.id %}
+    <form method="post" action="/drops/{{ drop.id }}/state" class="inline">
+      <input type="hidden" name="state_id" value="{{ s.id }}">
+      <button title="Move to {{ s.name }}"><span class="dot" style="--c: {{ s.color }}"></span>{{ s.name }}</button>
+    </form>
+    {% endfor %}
+  </div>
+</div>
+{% if drop.description %}<p>{{ drop.description }}</p>{% endif %}
+
+{% if goods_count %}
+<p class="summary">Planned goods:
+  {% for name, n in goods_count|dictsort %}<span class="badge">{{ name }} × {{ n }}</span>{% endfor %}
+</p>
+{% endif %}
+
+<div class="items">
+  {% for it in drop.items %}
+  <form method="post" action="/drops/{{ drop.id }}/items/{{ it.id }}" class="item card" id="item-{{ it.id }}">
+    <a href="/images/{{ it.image.id }}" class="thumb">
+      {% if it.image.has_preview %}<img src="/media/{{ it.image.id }}/thumb" alt="" loading="lazy">{% else %}<span class="noprev">{{ it.image.original_filename.rsplit('.',1)[-1]|upper }}</span>{% endif %}
+    </a>
+    <div class="item-body">
+      <div class="item-head">
+        <a href="/images/{{ it.image.id }}"><strong>{{ it.image.display_title }}</strong></a>
+        {% if it.image.interesting %}<span class="badge star">★</span>{% endif %}
+        {% if it.image.outcome != 'unknown' %}<span class="badge {{ 'ok' if it.image.outcome == 'successful' else 'bad' }}">{{ it.image.outcome }}</span>{% endif %}
+      </div>
+      <fieldset class="goods">
+        <legend class="small muted">Print on</legend>
+        {% for g in goods if g.active or g in it.goods %}
+        <label class="chip"><input type="checkbox" name="goods" value="{{ g.id }}" {{ 'checked' if g in it.goods }}> {{ g.name }}</label>
+        {% endfor %}
+      </fieldset>
+      <div class="row">
+        <input name="notes" value="{{ it.notes }}" placeholder="Notes for this image in the drop" class="grow">
+        <input type="number" name="position" value="{{ it.position }}" title="Order" class="narrow-num">
+        <button class="primary">Save</button>
+        {% if it.image.has_preview %}<a class="btn" href="/images/{{ it.image.id }}/apply">Apply template</a>{% endif %}
+        <button formaction="/drops/{{ drop.id }}/items/{{ it.id }}/remove" class="link">Remove</button>
+      </div>
+    </div>
+  </form>
+  {% else %}
+  <p class="empty">No images in this drop. Add some below, or select them on the <a href="/images">Images</a> page.</p>
+  {% endfor %}
+</div>
+
+{% if candidates %}
+<details class="card">
+  <summary>Add images ({{ candidates|length }} available, interesting first)</summary>
+  <form method="post" action="/drops/{{ drop.id }}/add">
+    <div class="grid small-grid">
+      {% for img in candidates %}
+      <label class="tile pick {{ 'is-interesting' if img.interesting }}">
+        <input type="checkbox" name="ids" value="{{ img.id }}">
+        <span class="thumb">{% if img.has_preview %}<img src="/media/{{ img.id }}/thumb" alt="" loading="lazy">{% else %}<span class="noprev">{{ img.original_filename.rsplit('.',1)[-1]|upper }}</span>{% endif %}</span>
+        <span class="tile-title">{% if img.interesting %}★ {% endif %}{{ img.display_title }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    <button class="primary">Add selected</button>
+  </form>
+</details>
+{% endif %}
+
+<details class="card">
+  <summary>Edit drop details</summary>
+  <form method="post" action="/drops/{{ drop.id }}" class="row wrap">
+    <label>Name <input name="name" value="{{ drop.name }}" required></label>
+    <label>Planned date <input type="date" name="planned_date" value="{{ drop.planned_date }}"></label>
+    <label>State
+      <select name="state_id">{% for s in states %}<option value="{{ s.id }}" {{ 'selected' if drop.state_id == s.id }}>{{ s.name }}</option>{% endfor %}</select>
+    </label>
+    <label class="wide">Description <textarea name="description" rows="2">{{ drop.description }}</textarea></label>
+    <button class="primary">Save</button>
+  </form>
+  {% if user.is_admin %}
+  <form method="post" action="/drops/{{ drop.id }}/delete" class="mt">
+    <button class="danger" data-confirm="Delete this drop? Images are kept.">Delete drop</button>
+  </form>
+  {% endif %}
+</details>
+{% endblock %}

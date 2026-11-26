@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Images · POD Manager{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>Images <span class="muted small">{{ images|length }}</span></h1>
+</div>
+
+<details class="card upload" {% if not images %}open{% endif %}>
+  <summary>Upload images</summary>
+  <form method="post" action="/images/upload" enctype="multipart/form-data" class="dropzone" id="upload-form">
+    <input type="file" name="files" multiple accept="{{ accept }}" id="file-input" required>
+    <p class="muted small">Drop files here or choose them. Raster: PNG, JPG, WebP, TIFF, GIF, BMP. Vector: SVG. PDF, AI, EPS and PSD are stored without preview.</p>
+    <label class="row">Tags for this batch <input name="tags" placeholder="e.g. cats, summer"></label>
+    <button class="primary">Upload</button>
+  </form>
+</details>
+
+<form method="get" class="filters">
+  <input name="q" value="{{ f.q }}" placeholder="Search title, tags, notes">
+  <select name="flag">
+    <option value="">All images</option>
+    {% for v, l in [("interesting","★ Interesting"),("successful","Successful"),("unsuccessful","Unsuccessful"),("unknown","Not rated"),("originals","Originals only"),("renders","Template renders only")] %}
+    <option value="{{ v }}" {{ 'selected' if f.flag == v }}>{{ l }}</option>{% endfor %}
+  </select>
+  <select name="kind">
+    <option value="">Any type</option>
+    {% for v in ["raster","vector","other"] %}<option value="{{ v }}" {{ 'selected' if f.kind == v }}>{{ v|capitalize }}</option>{% endfor %}
+  </select>
+  <select name="drop">
+    <option value="">In any drop or none</option>
+    <option value="none" {{ 'selected' if f.drop == 'none' }}>Not in a drop</option>
+    {% for d in drops %}<option value="{{ d.id }}" {{ 'selected' if f.drop == d.id|string }}>{{ d.name }}</option>{% endfor %}
+  </select>
+  <select name="sort">
+    <option value="new">Newest</option>
+    <option value="old" {{ 'selected' if f.sort == 'old' }}>Oldest</option>
+    <option value="title" {{ 'selected' if f.sort == 'title' }}>Title</option>
+  </select>
+  <button>Filter</button>
+  {% if f.q or f.flag or f.kind or f.drop or f.tag %}<a href="/images" class="small">Clear</a>{% endif %}
+</form>
+
+<form method="post" action="/images/bulk" id="bulk">
+  <div class="bulkbar">
+    <label class="check"><input type="checkbox" id="select-all"> Select all</label>
+    <span class="muted small" id="sel-count">0 selected</span>
+    <select name="drop_id">
+      <option value="">Choose drop…</option>
+      {% for d in drops %}<option value="{{ d.id }}">{{ d.name }}{% if d.state %} ({{ d.state.name }}){% endif %}</option>{% endfor %}
+    </select>
+    <button name="action" value="add_to_drop">Add to drop</button>
+    <span class="sep"></span>
+    <button name="action" value="interesting">★ Interesting</button>
+    <button name="action" value="not_interesting">☆ Unmark</button>
+    <button name="action" value="successful">Successful</button>
+    <button name="action" value="unsuccessful">Unsuccessful</button>
+    {% if user.is_admin %}<button name="action" value="delete" class="danger" data-confirm="Delete the selected images permanently?">Delete</button>{% endif %}
+  </div>
+
+  {% if images %}
+  <div class="grid">
+    {% for img in images %}
+    <div class="tile {{ 'is-interesting' if img.interesting }}">
+      <label class="tile-check"><input type="checkbox" name="ids" value="{{ img.id }}"></label>
+      <a href="/images/{{ img.id }}" class="thumb">
+        {% if img.has_preview %}<img src="/media/{{ img.id }}/thumb" alt="" loading="lazy">{% else %}<span class="noprev">{{ img.original_filename.rsplit('.',1)[-1]|upper }}</span>{% endif %}
+      </a>
+      <div class="tile-meta">
+        <a href="/images/{{ img.id }}" class="tile-title" title="{{ img.display_title }}">{{ img.display_title }}</a>
+        <div class="badges">
+          {% if img.interesting %}<span class="badge star">★</span>{% endif %}
+          {% if img.outcome == 'successful' %}<span class="badge ok">successful</span>{% elif img.outcome == 'unsuccessful' %}<span class="badge bad">unsuccessful</span>{% endif %}
+          <span class="badge">{{ img.kind }}</span>
+          {% if img.parent_id %}<span class="badge">render</span>{% endif %}
+          {% if img.drop_links %}<span class="badge">{{ img.drop_links|length }} drop{{ 's' if img.drop_links|length > 1 }}</span>{% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty">No images match. Upload some above.</p>
+  {% endif %}
+</form>
+{% endblock %}

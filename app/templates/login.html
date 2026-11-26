@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Log in · POD Manager{% endblock %}
+{% block mainclass %}narrow{% endblock %}
+{% block content %}
+<div class="card login">
+  <h1>POD Manager</h1>
+  <form method="post" action="/login" class="stack">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>Username <input name="username" autocomplete="username" required autofocus></label>
+    <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+    <button class="primary">Log in</button>
+  </form>
+</div>
+{% endblock %}

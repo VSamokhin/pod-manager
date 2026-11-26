@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}{{ img.display_title }} · POD Manager{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/images">Images</a> /</p>
+<div class="head">
+  <h1>{{ img.display_title }}</h1>
+  <div class="actions">
+    {% if img.has_preview %}<a class="btn primary" href="/images/{{ img.id }}/apply">Apply template</a>{% endif %}
+    <a class="btn" href="/media/{{ img.id }}/original?download=1">Download original</a>
+  </div>
+</div>
+
+<div class="split">
+  <div class="viewer checker">
+    {% if img.has_preview %}<img src="/media/{{ img.id }}/preview" alt="">{% else %}<div class="noprev big">No preview for {{ img.original_filename.rsplit('.',1)[-1]|upper }} files</div>{% endif %}
+  </div>
+
+  <div class="side">
+    <form method="post" action="/images/{{ img.id }}" class="card stack">
+      <label>Title <input name="title" value="{{ img.title }}"></label>
+      <div class="row">
+        <label class="check"><input type="checkbox" name="interesting" value="1" {{ 'checked' if img.interesting }}> ★ Interesting</label>
+      </div>
+      <fieldset class="seg">
+        <legend>Outcome</legend>
+        {% for o in outcomes %}<label><input type="radio" name="outcome" value="{{ o }}" {{ 'checked' if img.outcome == o }}> {{ 'Not rated' if o == 'unknown' else o|capitalize }}</label>{% endfor %}
+      </fieldset>
+      <label>Tags <input name="tags" value="{{ img.tags }}" placeholder="comma, separated"></label>
+      <label>Notes <textarea name="notes" rows="3">{{ img.notes }}</textarea></label>
+      <button class="primary">Save</button>
+    </form>
+
+    <div class="card">
+      <h3>Drops</h3>
+      {% if img.drop_links %}
+      <ul class="plain">
+        {% for link in img.drop_links %}
+        <li><a href="/drops/{{ link.drop.id }}">{{ link.drop.name }}</a>
+          {% if link.drop.state %}<span class="state" style="--c: {{ link.drop.state.color }}">{{ link.drop.state.name }}</span>{% endif %}
+          {% if link.goods %}<div class="small muted">on {{ link.goods|map(attribute='name')|join(', ') }}</div>{% endif %}
+        </li>{% endfor %}
+      </ul>
+      {% else %}<p class="muted small">Not in any drop yet.</p>{% endif %}
+      {% if drops %}
+      <form method="post" action="/images/{{ img.id }}/add-to-drop" class="row">
+        <select name="drop_id">{% for d in drops %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select>
+        <button>Add to drop</button>
+      </form>
+      {% else %}<p class="small"><a href="/drops">Create a drop</a> to group images.</p>{% endif %}
+    </div>
+
+    <div class="card small">
+      <h3>File</h3>
+      <dl class="meta">
+        <dt>File</dt><dd>{{ img.original_filename }}</dd>
+        <dt>Type</dt><dd>{{ img.kind }} · {{ img.mime }}</dd>
+        {% if img.width %}<dt>Size</dt><dd>{{ img.width }} × {{ img.height }} px · {{ (img.width / 300 * 25.4)|round(0)|int }} × {{ (img.height / 300 * 25.4)|round(0)|int }} mm at 300 dpi</dd>{% endif %}
+        <dt>Bytes</dt><dd>{{ (img.size_bytes / 1024 / 1024)|round(2) }} MB</dd>
+        <dt>Uploaded</dt><dd>{{ img.created_at.strftime('%Y-%m-%d %H:%M') }}{% if img.uploaded_by %} by {{ img.uploaded_by.username }}{% endif %}</dd>
+        {% if img.parent %}<dt>Made from</dt><dd><a href="/images/{{ img.parent.id }}">{{ img.parent.display_title }}</a>{% if img.template %} with “{{ img.template.name }}”{% endif %}</dd>{% endif %}
+      </dl>
+    </div>
+
+    {% if img.derived %}
+    <div class="card">
+      <h3>Template renders</h3>
+      <div class="minigrid">
+        {% for d in img.derived %}<a href="/images/{{ d.id }}" title="{{ d.display_title }}"><img src="/media/{{ d.id }}/thumb" alt=""></a>{% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if user.is_admin %}
+    <form method="post" action="/images/{{ img.id }}/delete">
+      <button class="danger" data-confirm="Delete this image permanently?">Delete image</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

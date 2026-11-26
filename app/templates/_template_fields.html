@@ -1,0 +1,67 @@
+{# Template parameter fields. Expects `params`. All lengths are % of the image's shorter side. #}
+{% macro num(name, label, step=0.5, max=50) -%}
+<label>{{ label }}
+  <span class="range"><input type="range" min="0" max="{{ max }}" step="{{ step }}" value="{{ params[name] }}" data-mirror="{{ name }}"><input type="number" name="{{ name }}" min="0" max="200" step="{{ step }}" value="{{ params[name] }}"></span>
+</label>
+{%- endmacro %}
+{% macro color(name, label) -%}
+<label class="color">{{ label }} <input type="color" name="{{ name }}" value="{{ params[name] }}"></label>
+{%- endmacro %}
+
+<p class="muted small">Sizes are % of the image's shorter side, so a template fits any resolution.</p>
+
+<details open><summary>Frame &amp; background</summary>
+  <div class="fields">
+    {{ num('padding', 'Padding') }}
+    {{ num('padding_bottom_extra', 'Extra bottom space', max=60) }}
+    {{ color('background', 'Background') }}
+    <label class="check"><input type="checkbox" name="background_transparent" {{ 'checked' if params.background_transparent }}> Transparent background</label>
+    {{ num('border_width', 'Border width', step=0.25, max=10) }}
+    {{ color('border_color', 'Border colour') }}
+    {{ num('frame_radius', 'Frame corner radius') }}
+  </div>
+</details>
+
+<details open><summary>Image corners &amp; outline</summary>
+  <div class="fields">
+    {{ num('image_radius', 'Image corner radius') }}
+    <label>Outline
+      <select name="outline_mode">
+        {% for v, l in [("none","None"),("rect","Rectangle"),("contour","Follow shape (sticker)")] %}<option value="{{ v }}" {{ 'selected' if params.outline_mode == v }}>{{ l }}</option>{% endfor %}
+      </select>
+    </label>
+    {{ num('outline_width', 'Outline width', step=0.25, max=20) }}
+    {{ num('outline_offset', 'Outline gap (rectangle only)', step=0.25, max=20) }}
+    {{ color('outline_color', 'Outline colour') }}
+    <label class="check"><input type="checkbox" name="cutline" {{ 'checked' if params.cutline }}> Cut line around the piece</label>
+    {{ color('cutline_color', 'Cut line colour') }}
+  </div>
+  <p class="muted small">“Follow shape” traces transparent PNGs and SVGs. Images without transparency get a rounded rectangle.</p>
+</details>
+
+<details open><summary>Title</summary>
+  <div class="fields">
+    <label class="wide">Text <input name="title_text" value="{{ params.title_text }}" placeholder="{title} uses the image title"></label>
+    <label>Position
+      <select name="title_position">
+        {% for v, l in [("bottom","Below image"),("top","Above image"),("overlay-bottom","On image, bottom"),("overlay-top","On image, top")] %}<option value="{{ v }}" {{ 'selected' if params.title_position == v }}>{{ l }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Align
+      <select name="title_align">
+        {% for v, l in [("start","Left"),("middle","Centre"),("end","Right")] %}<option value="{{ v }}" {{ 'selected' if params.title_align == v }}>{{ l }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Font
+      <select name="title_font">{% for fnt in FONTS %}<option {{ 'selected' if params.title_font == fnt }}>{{ fnt }}</option>{% endfor %}</select>
+    </label>
+    <label>Weight
+      <select name="title_weight">
+        <option value="bold" {{ 'selected' if params.title_weight == 'bold' }}>Bold</option>
+        <option value="normal" {{ 'selected' if params.title_weight == 'normal' }}>Regular</option>
+      </select>
+    </label>
+    {{ num('title_size', 'Size', step=0.25, max=30) }}
+    {{ color('title_color', 'Colour') }}
+  </div>
+</details>

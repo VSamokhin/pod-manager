@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Drops · POD Manager{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>Drops</h1>
+  <form method="get" class="row">
+    <select name="state" onchange="this.form.submit()">
+      <option value="">All states</option>
+      {% for s in states %}<option value="{{ s.id }}" {{ 'selected' if state_filter == s.id|string }}>{{ s.name }}</option>{% endfor %}
+    </select>
+  </form>
+</div>
+
+<details class="card">
+  <summary>New drop</summary>
+  <form method="post" action="/drops" class="row wrap">
+    <label>Name <input name="name" required placeholder="e.g. Autumn 2026"></label>
+    <label>Planned date <input type="date" name="planned_date"></label>
+    <label>State
+      <select name="state_id">{% for s in states %}<option value="{{ s.id }}" {{ 'selected' if s.is_default }}>{{ s.name }}</option>{% endfor %}</select>
+    </label>
+    <label class="wide">Description <input name="description"></label>
+    <button class="primary">Create drop</button>
+  </form>
+</details>
+
+{% for state, drops in groups %}
+  {% if drops or not state_filter %}
+  <section class="state-group">
+    <h2>{% if state %}<span class="state" style="--c: {{ state.color }}">{{ state.name }}</span>{% else %}<span class="state">No state</span>{% endif %} <span class="muted small">{{ drops|length }}</span></h2>
+    {% if drops %}
+    <div class="drop-list">
+      {% for d in drops %}
+      <a class="drop-card card" href="/drops/{{ d.id }}">
+        <div class="strip">
+          {% for it in d.items[:6] %}{% if it.image.has_preview %}<img src="/media/{{ it.image.id }}/thumb" alt="" loading="lazy">{% endif %}{% endfor %}
+          {% if not d.items %}<span class="muted small">No images yet</span>{% endif %}
+        </div>
+        <div class="drop-meta">
+          <strong>{{ d.name }}</strong>
+          <span class="muted small">{{ d.items|length }} image{{ 's' if d.items|length != 1 }}{% if d.planned_date %} · {{ d.planned_date }}{% endif %}</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}<p class="muted small">None.</p>{% endif %}
+  </section>
+  {% endif %}
+{% endfor %}
+{% endblock %}
