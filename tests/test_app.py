@@ -140,16 +140,11 @@ def test_templates_preview_and_export(client):
         )
         assert r.status_code == 200, r.text
         assert r.headers["content-type"].startswith(mime) and r.content.startswith(magic)
-    png = PILImage.open(
-        io.BytesIO(
-            r.content
-            if False
-            else client.post(
-                f"/images/{png_id}/export",
-                data={**base, "format": "png", "dpi": "254", "width_mm": "100", "action": "download"},
-            ).content
-        )
+    r = client.post(
+        f"/images/{png_id}/export",
+        data={**base, "format": "png", "dpi": "254", "width_mm": "100", "action": "download"},
     )
+    png = PILImage.open(io.BytesIO(r.content))
     assert png.width == 1000  # 100 mm at 254 dpi
 
     r = client.post(
