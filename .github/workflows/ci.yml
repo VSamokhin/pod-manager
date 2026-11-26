@@ -64,9 +64,9 @@ jobs:
         if: always()
         run: |
           pip install pip-licenses==5.5.5
-          pip-licenses --from=mixed --format=markdown --order=license \
-            --packages $(pip install --dry-run --quiet --report - -r requirements.txt | python -c "import json,sys; print(' '.join(i['metadata']['name'] for i in json.load(sys.stdin)['install']))") \
-            > licenses.md || true
+          mapfile -t pkgs < <(pip install --dry-run --quiet --ignore-installed --report - -r requirements.txt \
+            | python -c "import json,sys; print('\\n'.join(i['metadata']['name'] for i in json.load(sys.stdin)['install']))")
+          pip-licenses --from=mixed --format=markdown --order=license --packages "${pkgs[@]}" > licenses.md || true
           { echo '### Runtime dependency licences'; cat licenses.md; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()

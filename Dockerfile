@@ -12,6 +12,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
 
 # Cairo for SVG/PDF rendering, fonts for titles.
 RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
  && apt-get install -y --no-install-recommends libcairo2 fonts-dejavu-core fonts-liberation2 fontconfig \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --create-home --uid 1000 pod \
@@ -19,7 +20,9 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# pip and setuptools are not needed at runtime; removing them drops their vendored packages too.
+RUN pip install --no-cache-dir -r requirements.txt \
+ && pip uninstall -y pip setuptools wheel
 COPY app ./app
 
 USER 1000:1000

@@ -16,7 +16,8 @@ if [[ -n "$before_prod" && -n "$after_prod" && "$before_prod" != "$after_prod" &
   stamp=$(date -u +%Y%m%d-%H%M%S)
   docker compose exec -T prod python -c \
     "import sqlite3; s=sqlite3.connect('/data/pod.db'); d=sqlite3.connect('/data/backups/pod-$stamp.db'); s.backup(d)"
-  ls -1t prod-data/backups/pod-*.db | tail -n +11 | xargs -r rm --   # keep the newest 10
+  # Names sort by time (UTC stamp); keep the newest 10.
+  find prod-data/backups -name 'pod-*.db' | sort | head -n -10 | xargs -r rm --
   echo "$(date -Is) backed up prod database before update"
 fi
 
