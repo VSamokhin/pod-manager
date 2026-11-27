@@ -1,0 +1,13 @@
+{# Tag picker: a plain comma-separated input with suggestions; app.js turns it into chips with typeahead.
+   Expects `all_tags`, `tag_value` and `picker_id`. Unknown names are rejected by the server either way. #}
+<div class="tagpick" data-tagpick>
+  <input name="tags" value="{{ tag_value }}" list="{{ picker_id }}-options" autocomplete="off"
+         placeholder="{{ 'Type to pick from the tag list' if all_tags else 'No tags yet' }}">
+  <datalist id="{{ picker_id }}-options">
+    {% for t in all_tags %}<option value="{{ t.name }}" data-color="{{ t.color }}"></option>{% endfor %}
+  </datalist>
+  <span class="small muted">
+    {% if all_tags %}Only tags from the list can be used.{% else %}The tag list is empty.{% endif %}
+    {% if user.is_admin %}<a href="/admin/tags">Manage tags</a>{% endif %}
+  </span>
+</div>

@@ -40,6 +40,111 @@
       if (r) r.value = e.target.value;
     }
   });
+
+  // Tag pickers: chips + typeahead over the managed tag list. The hidden input keeps the comma-separated value.
+  document.querySelectorAll("[data-tagpick]").forEach((root) => {
+    const field = root.querySelector('input[name="tags"]');
+    const options = [...root.querySelectorAll("datalist option")].map((o) => ({ name: o.value, color: o.dataset.color }));
+    const byKey = new Map(options.map((o) => [o.name.toLowerCase(), o]));
+    const picked = [];
+    field.value.split(",").map((s) => s.trim().toLowerCase()).forEach((k) => {
+      if (byKey.has(k) && !picked.includes(byKey.get(k))) picked.push(byKey.get(k));
+    });
+
+    field.type = "hidden";
+    field.removeAttribute("list");
+    const wrap = document.createElement("div");
+    wrap.className = "tagwrap";
+    const box = document.createElement("div");
+    box.className = "tagbox";
+    const typer = document.createElement("input");
+    typer.className = "tagtype";
+    typer.autocomplete = "off";
+    typer.placeholder = options.length ? "Type to add a tag" : "No tags yet";
+    typer.setAttribute("aria-label", "Add a tag");
+    typer.setAttribute("role", "combobox");
+    typer.setAttribute("aria-expanded", "false");
+    const list = document.createElement("ul");
+    list.className = "tagsugg";
+    list.setAttribute("role", "listbox");
+    list.hidden = true;
+    wrap.append(box, list);
+    field.after(wrap);
+    let matches = [], active = 0;
+
+    const sync = () => {
+      field.value = picked.map((t) => t.name).join(", ");
+      box.querySelectorAll(".tagchip").forEach((c) => c.remove());
+      picked.forEach((t, i) => {
+        const chip = document.createElement("span");
+        chip.className = "tagchip";
+        chip.style.setProperty("--c", t.color || "#64748b");
+        chip.textContent = t.name;
+        const x = document.createElement("button");
+        x.type = "button";
+        x.textContent = "×";
+        x.setAttribute("aria-label", "Remove " + t.name);
+        x.addEventListener("click", () => { picked.splice(i, 1); sync(); typer.focus(); });
+        chip.append(x);
+        box.insertBefore(chip, typer);
+      });
+    };
+    const render = () => {
+      const q = typer.value.trim().toLowerCase();
+      matches = options.filter((o) => !picked.includes(o) && o.name.toLowerCase().includes(q));
+      matches.sort((a, b) => a.name.toLowerCase().startsWith(q) === b.name.toLowerCase().startsWith(q) ? 0 : a.name.toLowerCase().startsWith(q) ? -1 : 1);
+      active = Math.min(active, Math.max(matches.length - 1, 0));
+      list.innerHTML = "";
+      matches.slice(0, 50).forEach((o, i) => {
+        const li = document.createElement("li");
+        li.setAttribute("role", "option");
+        li.className = i === active ? "on" : "";
+        const dot = document.createElement("span");
+        dot.className = "dot";
+        dot.style.setProperty("--c", o.color || "#64748b");
+        li.append(dot, document.createTextNode(o.name));
+        li.addEventListener("mousedown", (e) => { e.preventDefault(); add(o); });
+        list.append(li);
+      });
+      if (!matches.length) {
+        const li = document.createElement("li");
+        li.className = "none";
+        li.textContent = q ? `“${typer.value.trim()}” is not on the tag list` : "All tags are already added";
+        list.append(li);
+      }
+      root.classList.toggle("bad", !!q && !matches.length);
+      list.hidden = false;
+      typer.setAttribute("aria-expanded", "true");
+    };
+    const close = () => { list.hidden = true; typer.setAttribute("aria-expanded", "false"); };
+    const add = (o) => { picked.push(o); typer.value = ""; active = 0; sync(); close(); }; // reopens on typing
+
+    box.append(typer);
+    box.addEventListener("click", () => { typer.focus(); render(); });
+    typer.addEventListener("focus", render);
+    typer.addEventListener("input", () => { active = 0; render(); });
+    typer.addEventListener("blur", () => { close(); typer.value = ""; root.classList.remove("bad"); });
+    typer.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        if (matches.length) active = (active + (e.key === "ArrowDown" ? 1 : matches.length - 1)) % matches.length;
+        render();
+      } else if (e.key === "Enter" || e.key === "," || (e.key === "Tab" && typer.value.trim())) {
+        if (e.key === "Enter" && !typer.value.trim()) return; // an empty Enter submits the form
+        e.preventDefault();
+        const exact = byKey.get(typer.value.trim().toLowerCase());
+        const pick = exact && !picked.includes(exact) ? exact : matches[active];
+        if (pick && typer.value.trim()) add(pick);
+      } else if (e.key === "Backspace" && !typer.value && picked.length) {
+        picked.pop();
+        sync();
+        render();
+      } else if (e.key === "Escape") {
+        close();
+      }
+    });
+    sync();
+  });
 })();
 
 window.PodPreview = {

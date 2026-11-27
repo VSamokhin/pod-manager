@@ -143,3 +143,19 @@ ul.plain { list-style: none; padding: 0; margin: 0 0 .8rem; display: flex; flex-
   .item { grid-template-columns: 90px 1fr; }
   .tbl, .tbl tbody, .tbl tr, .tbl td { display: block; } .tbl thead { display: none; }
 }
+
+/* tags */
+.field { display: flex; flex-direction: column; gap: .25rem; font-size: .88rem; }
+.badge.tag { color: var(--c, var(--muted)); border-color: color-mix(in srgb, var(--c, #888) 55%, transparent); text-decoration: none; }
+.tagwrap { position: relative; }
+.tagpick { display: flex; flex-direction: column; gap: .25rem; }
+.tagbox { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; padding: .3rem .4rem; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); cursor: text; }
+.tagbox:focus-within { border-color: var(--accent); }
+.tagbox input.tagtype { border: 0 !important; padding: .15rem .2rem !important; flex: 1 1 8rem; min-width: 6rem; outline: none; background: transparent; }
+.tagchip { display: inline-flex; align-items: center; gap: .3rem; font-size: .8rem; padding: .1rem .2rem .1rem .55rem; border-radius: 999px; border: 1px solid var(--c, #888); color: var(--c, #888); }
+.tagchip button { border: 0; background: none; padding: 0 .3rem; color: inherit; line-height: 1; font-size: .95rem; }
+.tagsugg { position: absolute; top: 100%; left: 0; right: 0; z-index: 20; margin: .2rem 0 0; padding: .25rem; list-style: none; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); max-height: 14rem; overflow: auto; }
+.tagsugg li { padding: .3rem .5rem; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: .4rem; }
+.tagsugg li.on { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.tagsugg li.none { color: var(--muted); cursor: default; }
+.tagpick.bad .tagbox { border-color: var(--bad); }

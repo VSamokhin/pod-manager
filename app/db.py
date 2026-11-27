@@ -58,7 +58,9 @@ class Image(Base):
     has_preview: Mapped[bool] = mapped_column(Boolean, default=False)
     interesting: Mapped[bool] = mapped_column(Boolean, default=False)
     outcome: Mapped[str] = mapped_column(String(16), default="unknown")  # unknown | successful | unsuccessful
-    tags: Mapped[str] = mapped_column(String(500), default="")
+    # Free-form comma-separated tags from before the managed tag list existed. Moved into `tags` at startup
+    # by app.tags.migrate_legacy_tags(); kept only so existing databases still match the schema.
+    legacy_tags: Mapped[str] = mapped_column("tags", String(500), default="")
     notes: Mapped[str] = mapped_column(Text, default="")
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("images.id", ondelete="SET NULL"), nullable=True)
     template_id: Mapped[int | None] = mapped_column(ForeignKey("templates.id", ondelete="SET NULL"), nullable=True)
@@ -70,6 +72,7 @@ class Image(Base):
     derived: Mapped[list["Image"]] = relationship(back_populates="parent")
     template: Mapped["Template | None"] = relationship()
     drop_links: Mapped[list["DropImage"]] = relationship(back_populates="image", cascade="all, delete-orphan")
+    tags: Mapped[list["Tag"]] = relationship(secondary="image_tags", order_by="Tag.name", back_populates="images")
 
     @property
     def display_title(self) -> str:
@@ -77,7 +80,31 @@ class Image(Base):
 
     @property
     def tag_list(self) -> list[str]:
-        return [t.strip() for t in self.tags.split(",") if t.strip()]
+        return [t.name for t in self.tags]
+
+    @property
+    def tags_text(self) -> str:
+        return ", ".join(self.tag_list)
+
+
+image_tags = Table(
+    "image_tags",
+    Base.metadata,
+    Column("image_id", ForeignKey("images.id", ondelete="CASCADE"), primary_key=True),
+    Column("tag_id", ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
+class Tag(Base):
+    """A tag from the managed list. Only admins create, rename or delete tags; everyone picks from the list."""
+
+    __tablename__ = "tags"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(64, collation="NOCASE"), unique=True)
+    color: Mapped[str] = mapped_column(String(16), default="#64748b")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    images: Mapped[list[Image]] = relationship(secondary=image_tags, back_populates="tags")
 
 
 class DropState(Base):

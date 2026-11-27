@@ -25,7 +25,9 @@
         <legend>Outcome</legend>
         {% for o in outcomes %}<label><input type="radio" name="outcome" value="{{ o }}" {{ 'checked' if img.outcome == o }}> {{ 'Not rated' if o == 'unknown' else o|capitalize }}</label>{% endfor %}
       </fieldset>
-      <label>Tags <input name="tags" value="{{ img.tags }}" placeholder="comma, separated"></label>
+      <div class="field"><span class="label">Tags</span>
+        {% with tag_value=img.tags_text, picker_id="img-tags" %}{% include "_tag_picker.html" %}{% endwith %}
+      </div>
       <label>Notes <textarea name="notes" rows="3">{{ img.notes }}</textarea></label>
       <button class="primary">Save</button>
     </form>

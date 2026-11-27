@@ -5,9 +5,9 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .. import render
+from .. import render, tags
 from ..auth import admin_user, hash_password
-from ..db import Drop, DropState, GoodsType, Image, Template, User, get_db
+from ..db import Drop, DropState, GoodsType, Image, Tag, Template, User, get_db, image_tags
 from ..web import flash, form_str, page, redirect
 from .images import _params_from_form
 
@@ -30,6 +30,7 @@ def admin_home(request: Request, user: User = Depends(admin_user), db: Session =
     counts = {
         "Images": db.scalar(select(func.count(Image.id))),
         "Drops": db.scalar(select(func.count(Drop.id))),
+        "Tags": db.scalar(select(func.count(Tag.id))),
         "Templates": db.scalar(select(func.count(Template.id))),
         "Goods types": db.scalar(select(func.count(GoodsType.id))),
         "Users": db.scalar(select(func.count(User.id))),
@@ -92,6 +93,88 @@ def state_delete(
     db.commit()
     flash(request, "State deleted.")
     return redirect("/admin/states")
+
+
+# ------------------------------------------------------------------ tags
+
+
+@router.get("/tags")
+def tag_list(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)) -> Response:
+    rows = db.execute(select(image_tags.c.tag_id, func.count()).group_by(image_tags.c.tag_id)).all()
+    usage = {int(r[0]): int(r[1]) for r in rows}
+    return page(request, "admin/tags.html", tags=tags.all_tags(db), usage=usage)
+
+
+@router.post("/tags")
+def tag_add(
+    request: Request,
+    names: str = Form(...),
+    color: str = Form(tags.DEFAULT_COLOR),
+    user: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    added, existing = [], []
+    for name in tags.split_names(names):
+        if tags.find(db, name):
+            existing.append(name)
+        else:
+            db.add(Tag(name=name, color=render._color(color, tags.DEFAULT_COLOR)))
+            added.append(name)
+    db.commit()
+    if added:
+        flash(request, f"Added {len(added)} tag(s).")
+    if existing:
+        flash(request, "Already on the list: " + ", ".join(existing), "error")
+    return redirect("/admin/tags")
+
+
+@router.post("/tags/{tag_id}")
+def tag_save(
+    request: Request,
+    tag_id: int,
+    name: str = Form(...),
+    color: str = Form(tags.DEFAULT_COLOR),
+    user: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    tag = db.get(Tag, tag_id)
+    if not tag:
+        raise HTTPException(404)
+    clean = tags.clean_name(name)
+    if not clean:
+        flash(request, "A tag needs a name.", "error")
+        return redirect("/admin/tags")
+    other = tags.find(db, clean)
+    if other and other.id != tag.id:
+        msg = f"“{other.name}” already exists. To merge, delete this tag and move its images there."
+        flash(request, msg, "error")
+        return redirect("/admin/tags")
+    tag.name, tag.color = clean, render._color(color, tags.DEFAULT_COLOR)
+    db.commit()
+    flash(request, "Tag saved.")
+    return redirect("/admin/tags")
+
+
+@router.post("/tags/{tag_id}/delete")
+def tag_delete(
+    request: Request,
+    tag_id: int,
+    move_to: str = Form(""),
+    user: User = Depends(admin_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    tag = db.get(Tag, tag_id)
+    if not tag:
+        raise HTTPException(404)
+    target = db.get(Tag, int(move_to)) if move_to.isdigit() and int(move_to) != tag_id else None
+    if target:
+        for img in tag.images:
+            if target not in img.tags:
+                img.tags.append(target)
+    db.delete(tag)
+    db.commit()
+    flash(request, f"Tag deleted. Its images now have “{target.name}”." if target else "Tag deleted.")
+    return redirect("/admin/tags")
 
 
 # ------------------------------------------------------------------ goods types

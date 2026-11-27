@@ -10,7 +10,9 @@
   <form method="post" action="/images/upload" enctype="multipart/form-data" class="dropzone" id="upload-form">
     <input type="file" name="files" multiple accept="{{ accept }}" id="file-input" required>
     <p class="muted small">Drop files here or choose them. Raster: PNG, JPG, WebP, TIFF, GIF, BMP. Vector: SVG. PDF, AI, EPS and PSD are stored without preview.</p>
-    <label class="row">Tags for this batch <input name="tags" placeholder="e.g. cats, summer"></label>
+    <div class="field"><span class="label">Tags for this batch</span>
+      {% with tag_value="", picker_id="upload-tags" %}{% include "_tag_picker.html" %}{% endwith %}
+    </div>
     <button class="primary">Upload</button>
   </form>
 </details>
@@ -31,6 +33,12 @@
     <option value="none" {{ 'selected' if f.drop == 'none' }}>Not in a drop</option>
     {% for d in drops %}<option value="{{ d.id }}" {{ 'selected' if f.drop == d.id|string }}>{{ d.name }}</option>{% endfor %}
   </select>
+  {% if all_tags %}
+  <select name="tag">
+    <option value="">Any tag</option>
+    {% for t in all_tags %}<option value="{{ t.name }}" {{ 'selected' if f.tag|lower == t.name|lower }}>{{ t.name }}</option>{% endfor %}
+  </select>
+  {% endif %}
   <select name="sort">
     <option value="new">Newest</option>
     <option value="old" {{ 'selected' if f.sort == 'old' }}>Oldest</option>
@@ -49,6 +57,15 @@
       {% for d in drops %}<option value="{{ d.id }}">{{ d.name }}{% if d.state %} ({{ d.state.name }}){% endif %}</option>{% endfor %}
     </select>
     <button name="action" value="add_to_drop">Add to drop</button>
+    {% if all_tags %}
+    <span class="sep"></span>
+    <select name="tag_id">
+      <option value="">Choose tag…</option>
+      {% for t in all_tags %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+    </select>
+    <button name="action" value="add_tag">Add tag</button>
+    <button name="action" value="remove_tag">Remove tag</button>
+    {% endif %}
     <span class="sep"></span>
     <button name="action" value="interesting">★ Interesting</button>
     <button name="action" value="not_interesting">☆ Unmark</button>
@@ -72,6 +89,7 @@
           {% if img.outcome == 'successful' %}<span class="badge ok">successful</span>{% elif img.outcome == 'unsuccessful' %}<span class="badge bad">unsuccessful</span>{% endif %}
           <span class="badge">{{ img.kind }}</span>
           {% if img.parent_id %}<span class="badge">render</span>{% endif %}
+          {% for t in img.tags %}<a class="badge tag" style="--c: {{ t.color }}" href="/images?tag={{ t.name|urlencode }}">{{ t.name }}</a>{% endfor %}
           {% if img.drop_links %}<span class="badge">{{ img.drop_links|length }} drop{{ 's' if img.drop_links|length > 1 }}</span>{% endif %}
         </div>
       </div>

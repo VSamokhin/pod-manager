@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Tags · Admin{% endblock %}
+{% block content %}
+<h1>Tags</h1>
+{% include "admin/_nav.html" %}
+<p class="muted">The tags people can put on images. Everyone picks from this list; only admins can change it.</p>
+{% if tags %}
+<table class="tbl">
+  <thead><tr><th>Name and colour</th><th>Images</th><th></th></tr></thead>
+  <tbody>
+  {% for t in tags %}
+  <tr>
+    <td>
+      <form method="post" action="/admin/tags/{{ t.id }}" class="row">
+        <input name="name" value="{{ t.name }}" maxlength="64" required aria-label="Name">
+        <input type="color" name="color" value="{{ t.color }}" aria-label="Colour">
+        <button>Save</button>
+      </form>
+    </td>
+    <td>{% if usage.get(t.id, 0) %}<a href="/images?tag={{ t.name|urlencode }}">{{ usage.get(t.id, 0) }}</a>{% else %}0{% endif %}</td>
+    <td>
+      <form method="post" action="/admin/tags/{{ t.id }}/delete" class="row">
+        {% if usage.get(t.id, 0) %}
+        <select name="move_to" title="What happens to its images">
+          <option value="">just remove it from its images</option>
+          {% for o in tags if o.id != t.id %}<option value="{{ o.id }}">merge into {{ o.name }}</option>{% endfor %}
+        </select>
+        {% endif %}
+        <button class="danger" data-confirm="Delete tag {{ t.name }}?">Delete</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No tags yet. Add the first ones below.</p>
+{% endif %}
+<div class="card">
+  <h3>Add tags</h3>
+  <form method="post" action="/admin/tags" class="stack">
+    <label>Names <textarea name="names" rows="3" placeholder="One per line or comma separated, e.g. cats, summer, retro" required></textarea></label>
+    <div class="row">
+      <label class="check">Colour <input type="color" name="color" value="#64748b"></label>
+      <button class="primary">Add</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

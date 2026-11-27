@@ -4,13 +4,13 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
-from sqlalchemy import ColumnElement, or_, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 from starlette.datastructures import FormData
 
-from .. import config, imaging, render
+from .. import config, imaging, render, tags
 from ..auth import current_user
-from ..db import Drop, DropImage, GoodsType, Image, Template, User, get_db
+from ..db import Drop, DropImage, GoodsType, Image, Tag, Template, User, get_db
 from ..web import flash, form_str, page, redirect
 
 router = APIRouter()
@@ -71,7 +71,7 @@ def list_images(
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> Response:
-    stmt = select(Image).options(selectinload(Image.drop_links))
+    stmt = select(Image).options(selectinload(Image.drop_links), selectinload(Image.tags))
     if q:
         like = f"%{q}%"
         stmt = stmt.where(
@@ -79,7 +79,7 @@ def list_images(
                 Image.title.ilike(like),
                 Image.original_filename.ilike(like),
                 Image.notes.ilike(like),
-                Image.tags.ilike(like),
+                Image.tags.any(Tag.name.ilike(like)),
             )
         )
     if kind in ("raster", "vector", "other"):
@@ -93,7 +93,7 @@ def list_images(
     elif flag == "originals":
         stmt = stmt.where(Image.parent_id.is_(None))
     if tag:
-        stmt = stmt.where(Image.tags.ilike(f"%{tag}%"))
+        stmt = stmt.where(Image.tags.any(func.lower(Tag.name) == tag.strip().lower()))
     if drop == "none":
         stmt = stmt.where(~Image.drop_links.any())
     elif drop.isdigit():
@@ -108,6 +108,7 @@ def list_images(
         "images.html",
         images=images,
         drops=drops,
+        all_tags=tags.all_tags(db),
         f={"q": q, "kind": kind, "flag": flag, "tag": tag, "drop": drop, "sort": sort},
         accept=",".join(sorted(imaging.ALLOWED_EXT)),
     )
@@ -117,11 +118,12 @@ def list_images(
 async def upload(
     request: Request,
     files: list[UploadFile] = File(...),
-    tags: str = Form(""),
+    tag_input: str = Form("", alias="tags"),
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> Response:
     ok, errors = 0, []
+    batch_tags, unknown = tags.resolve(db, tag_input)
     limit = config.MAX_UPLOAD_MB * 1024 * 1024
     for f in files:
         if not f.filename:
@@ -131,13 +133,15 @@ async def upload(
             errors.append(f"{f.filename}: larger than {config.MAX_UPLOAD_MB} MB")
             continue
         try:
-            create_image(db, data, f.filename, user, tags=tags.strip())
+            create_image(db, data, f.filename, user, tags=list(batch_tags))
             ok += 1
         except imaging.IngestError as exc:
             errors.append(f"{f.filename}: {exc}")
     db.commit()
     if ok:
         flash(request, f"Uploaded {ok} file(s).")
+    if unknown:
+        flash(request, tags.unknown_message(unknown), "error")
     for e in errors:
         flash(request, e, "error")
     return redirect("/images")
@@ -149,6 +153,7 @@ def bulk(
     action: str = Form(...),
     ids: list[int] = Form(default=[]),
     drop_id: str = Form(""),
+    tag_id: str = Form(""),
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> Response:
@@ -164,7 +169,12 @@ def bulk(
         db.commit()
         flash(request, f"Added {added} image(s) to “{drop.name}”.")
         return redirect(f"/drops/{drop.id}")
-    if action in ("interesting", "not_interesting"):
+    if action in ("add_tag", "remove_tag"):
+        if not tag_id.isdigit() or not (tag := db.get(Tag, int(tag_id))):
+            flash(request, "Choose a tag.", "error")
+            return redirect(request.headers.get("referer") or "/images")
+        _bulk_tag(images, tag, add=action == "add_tag")
+    elif action in ("interesting", "not_interesting"):
         for img in images:
             img.interesting = action == "interesting"
     elif action in OUTCOMES:
@@ -181,6 +191,14 @@ def bulk(
     db.commit()
     flash(request, f"Updated {len(images)} image(s).")
     return redirect(request.headers.get("referer") or "/images")
+
+
+def _bulk_tag(images: Sequence[Image], tag: Tag, *, add: bool) -> None:
+    for img in images:
+        if add and tag not in img.tags:
+            img.tags.append(tag)
+        elif not add and tag in img.tags:
+            img.tags.remove(tag)
 
 
 def add_images_to_drop(db: Session, drop: Drop, images: Sequence[Image]) -> int:
@@ -206,7 +224,15 @@ def image_detail(
     img = get_image(db, image_id)
     drops = db.scalars(select(Drop).order_by(Drop.id.desc())).all()
     tpls = db.scalars(select(Template).order_by(Template.name)).all()
-    return page(request, "image_detail.html", img=img, drops=drops, templates=tpls, outcomes=OUTCOMES)
+    return page(
+        request,
+        "image_detail.html",
+        img=img,
+        drops=drops,
+        templates=tpls,
+        outcomes=OUTCOMES,
+        all_tags=tags.all_tags(db),
+    )
 
 
 @router.post("/images/{image_id}")
@@ -214,7 +240,7 @@ def image_update(
     request: Request,
     image_id: int,
     title: str = Form(""),
-    tags: str = Form(""),
+    tag_input: str = Form("", alias="tags"),
     notes: str = Form(""),
     interesting: str = Form(""),
     outcome: str = Form("unknown"),
@@ -223,12 +249,14 @@ def image_update(
 ) -> Response:
     img = get_image(db, image_id)
     img.title = title.strip()[:255]
-    img.tags = ", ".join(t.strip() for t in tags.split(",") if t.strip())[:500]
+    img.tags, unknown = tags.resolve(db, tag_input)
     img.notes = notes
     img.interesting = bool(interesting)
     img.outcome = outcome if outcome in OUTCOMES else "unknown"
     db.commit()
     flash(request, "Saved.")
+    if unknown:
+        flash(request, tags.unknown_message(unknown), "error")
     return redirect(f"/images/{image_id}")
 
 
@@ -367,7 +395,7 @@ async def export(
             title=name[:255],
             parent_id=img.id,
             template_id=tpl.id if tpl else None,
-            tags=img.tags,
+            tags=list(img.tags),
         )
         db.commit()
         flash(request, "Saved as a new image. It keeps a link to the original.")
