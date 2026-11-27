@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import config, db, tags
+from . import autotag, config, db, tags
 from .auth import LoginRequiredError, current_user, hash_password, seed, verify_password
 from .db import User, get_db
 from .routes import admin, drops, images
@@ -22,6 +22,7 @@ def create_app(db_url: str | None = None) -> FastAPI:
     with db.session_factory()() as s:
         seed(s)
         tags.migrate_legacy_tags(s)
+        autotag.seed_once(s)
 
     app = FastAPI(title="POD Manager", docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(

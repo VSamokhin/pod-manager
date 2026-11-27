@@ -32,6 +32,26 @@
       <button class="primary">Save</button>
     </form>
 
+    {% if print_hints %}
+    <div class="card">
+      <h3>Print sizes</h3>
+      <ul class="plain prints">
+        {% for h in print_hints %}
+        <li>
+          <strong>{{ h.label }}</strong>
+          <span class="badge {{ 'ok' if h.quality in ('excellent', 'sharp at any size') else 'bad' if h.quality == 'soft' else '' }}">{{ h.quality }}{% if h.dpi %} · {{ h.dpi }} dpi{% endif %}</span>
+          <div class="small muted">{{ h.role|capitalize }}{% if h.crop >= 0.01 %} · crops {{ (h.crop * 100)|round|int }} % of the image{% endif %}</div>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="small muted">
+        {% if img.kind == 'vector' %}Vector files scale freely; these formats match the shape.
+        {% elif print_hints|length == 1 and print_hints[0].quality == 'soft' %}Too few pixels for a sharp print; {{ min_dpi }} dpi is the usual minimum.
+        {% else %}Sharp means at least {{ min_dpi }} dpi when the image fills the format.{% endif %}
+      </p>
+    </div>
+    {% endif %}
+
     <div class="card">
       <h3>Drops</h3>
       {% if img.drop_links %}

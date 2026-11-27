@@ -8,7 +8,7 @@ from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 from starlette.datastructures import FormData
 
-from .. import config, imaging, render, tags
+from .. import autotag, config, imaging, printfit, render, tags
 from ..auth import current_user
 from ..db import Drop, DropImage, GoodsType, Image, Tag, Template, User, get_db
 from ..web import flash, form_str, page, redirect
@@ -48,6 +48,7 @@ def create_image(db: Session, data: bytes, filename: str, user: User | None, **e
         except Exception as exc:  # noqa: BLE001 - Pillow/Cairo raise many types on corrupt files; keep the file
             img.kind = "other"
             img.notes = f"Could not read image: {exc}"[:500]
+    autotag.apply(db, img)
     return img
 
 
@@ -232,6 +233,8 @@ def image_detail(
         templates=tpls,
         outcomes=OUTCOMES,
         all_tags=tags.all_tags(db),
+        print_hints=printfit.suggest(img.width, img.height, img.kind),
+        min_dpi=printfit.MIN_DPI,
     )
 
 

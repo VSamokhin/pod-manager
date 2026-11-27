@@ -159,3 +159,5 @@ ul.plain { list-style: none; padding: 0; margin: 0 0 .8rem; display: flex; flex-
 .tagsugg li.on { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .tagsugg li.none { color: var(--muted); cursor: default; }
 .tagpick.bad .tagbox { border-color: var(--bad); }
+.prints li { display: flex; flex-wrap: wrap; gap: .2rem .5rem; align-items: baseline; } .prints li div { flex-basis: 100%; }
+.tbl form.row select[name=auto_rule] { max-width: 17rem; } .tbl form.row input[name=name] { max-width: 14rem; }

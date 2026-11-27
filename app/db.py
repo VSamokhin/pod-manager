@@ -102,6 +102,8 @@ class Tag(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(64, collation="NOCASE"), unique=True)
     color: Mapped[str] = mapped_column(String(16), default="#64748b")
+    # Key of an app.autotag rule; images matching that rule get this tag on upload. At most one tag per rule.
+    auto_rule: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     images: Mapped[list[Image]] = relationship(secondary=image_tags, back_populates="tags")
@@ -177,6 +179,14 @@ class Template(Base):
             return json.loads(self.params_json or "{}")
         except ValueError:
             return {}
+
+
+class AppMeta(Base):
+    """Small key/value store for one-off markers such as finished data migrations."""
+
+    __tablename__ = "app_meta"
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(String(255), default="")
 
 
 engine: Engine | None = None

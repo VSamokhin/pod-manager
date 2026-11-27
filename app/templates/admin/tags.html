@@ -3,10 +3,11 @@
 {% block content %}
 <h1>Tags</h1>
 {% include "admin/_nav.html" %}
-<p class="muted">The tags people can put on images. Everyone picks from this list; only admins can change it.</p>
+<p class="muted">The tags people can put on images. Everyone picks from this list; only admins can change it.
+  A tag with an automatic rule is added to every new upload that matches it.</p>
 {% if tags %}
 <table class="tbl">
-  <thead><tr><th>Name and colour</th><th>Images</th><th></th></tr></thead>
+  <thead><tr><th>Name, colour and automatic rule</th><th>Images</th><th></th></tr></thead>
   <tbody>
   {% for t in tags %}
   <tr>
@@ -14,6 +15,10 @@
       <form method="post" action="/admin/tags/{{ t.id }}" class="row">
         <input name="name" value="{{ t.name }}" maxlength="64" required aria-label="Name">
         <input type="color" name="color" value="{{ t.color }}" aria-label="Colour">
+        <select name="auto_rule" aria-label="Add automatically to" title="Add this tag automatically to">
+          <option value="">Only added by hand</option>
+          {% for key, (label, _default) in rules.items() %}<option value="{{ key }}" {{ 'selected' if t.auto_rule == key }}>Auto: {{ label }}</option>{% endfor %}
+        </select>
         <button>Save</button>
       </form>
     </td>
@@ -36,7 +41,11 @@
 {% else %}
 <p class="empty">No tags yet. Add the first ones below.</p>
 {% endif %}
-<div class="card">
+<form method="post" action="/admin/tags/auto-apply" class="row mt">
+  <button>Apply automatic tags to existing images</button>
+  <span class="small muted">Adds missing automatic tags to all images; never removes tags.</span>
+</form>
+<div class="card mt">
   <h3>Add tags</h3>
   <form method="post" action="/admin/tags" class="stack">
     <label>Names <textarea name="names" rows="3" placeholder="One per line or comma separated, e.g. cats, summer, retro" required></textarea></label>

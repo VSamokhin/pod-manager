@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .. import render, tags
+from .. import autotag, render, tags
 from ..auth import admin_user, hash_password
 from ..db import Drop, DropState, GoodsType, Image, Tag, Template, User, get_db, image_tags
 from ..web import flash, form_str, page, redirect
@@ -102,7 +102,14 @@ def state_delete(
 def tag_list(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)) -> Response:
     rows = db.execute(select(image_tags.c.tag_id, func.count()).group_by(image_tags.c.tag_id)).all()
     usage = {int(r[0]): int(r[1]) for r in rows}
-    return page(request, "admin/tags.html", tags=tags.all_tags(db), usage=usage)
+    return page(request, "admin/tags.html", tags=tags.all_tags(db), usage=usage, rules=autotag.RULES)
+
+
+@router.post("/tags/auto-apply")
+def tag_auto_apply(request: Request, user: User = Depends(admin_user), db: Session = Depends(get_db)) -> Response:
+    added = autotag.apply_all(db)
+    flash(request, f"Automatic tags applied to existing images ({added} added).")
+    return redirect("/admin/tags")
 
 
 @router.post("/tags")
@@ -134,6 +141,7 @@ def tag_save(
     tag_id: int,
     name: str = Form(...),
     color: str = Form(tags.DEFAULT_COLOR),
+    auto_rule: str = Form(""),
     user: User = Depends(admin_user),
     db: Session = Depends(get_db),
 ) -> Response:
@@ -150,6 +158,7 @@ def tag_save(
         flash(request, msg, "error")
         return redirect("/admin/tags")
     tag.name, tag.color = clean, render._color(color, tags.DEFAULT_COLOR)
+    autotag.assign(db, tag, auto_rule)
     db.commit()
     flash(request, "Tag saved.")
     return redirect("/admin/tags")
