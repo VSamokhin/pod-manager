@@ -1,6 +1,6 @@
 [project]
 name = "pod-manager"
-version = "0.1.0"
+version = "0.0.1"  # last published release; the release tag is the source of truth (Release Drafter)
 description = "Self-hosted artwork manager for print-on-demand: organise images into drops, apply vector frames and sticker outlines, export print-ready files."
 license = "MIT"
 license-files = ["LICENSE"]
