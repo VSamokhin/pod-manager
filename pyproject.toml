@@ -5,11 +5,11 @@ description = "Self-hosted artwork manager for print-on-demand: organise images 
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Viktor Samokhin" }]
-requires-python = ">=3.13"
+requires-python = ">=3.15"
 
 # ---------------------------------------------------------------- ruff (lint + format)
 [tool.ruff]
-target-version = "py313"
+target-version = "py315"
 line-length = 120
 src = ["."]
 
@@ -54,7 +54,7 @@ quote-style = "double"
 
 # ---------------------------------------------------------------- mypy
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.15"
 files = ["app"]
 check_untyped_defs = true
 disallow_incomplete_defs = true
