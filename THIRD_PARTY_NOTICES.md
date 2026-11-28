@@ -35,7 +35,7 @@ Installed from Debian by the `Dockerfile`, not stored in this repository.
 
 | Package | Licence |
 |---|---|
-| python:3.13-slim base image | PSF-2.0 (Python), Debian packages under their own free licences |
+| python:3.15-slim base image | PSF-2.0 (Python), Debian packages under their own free licences |
 | libcairo2 | LGPL-2.1 or MPL-1.1 (dual) |
 | fonts-dejavu-core | Bitstream Vera Fonts licence (permissive), DejaVu changes public domain |
 | fonts-liberation2 | SIL Open Font License 1.1 |

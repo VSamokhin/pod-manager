@@ -9,7 +9,7 @@ A small self-hosted web app for managing artwork for a print-on-demand business.
 - **Print export**: PNG (with DPI metadata), PDF or SVG, sized natively or to a goods type's print area. Renders can be saved back as new images linked to their original.
 - **Admin**: drop states, goods types (with print area in mm), templates, and users with `admin` or `user` roles. Password login.
 
-Stack: Python 3.13, FastAPI, Jinja2 templates, SQLite, Pillow, CairoSVG, NumPy. One container, no external services.
+Stack: Python 3.15, FastAPI, Jinja2 templates, SQLite, Pillow, CairoSVG, NumPy. One container, no external services.
 
 ## Run the published image
 
@@ -88,7 +88,7 @@ The **Follow shape (sticker)** outline traces the image's transparency (PNG alph
 ## Development
 
 ```bash
-python -m venv .venv && . .venv/bin/activate
+python3.15 -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
 pre-commit install
 POD_DATA_DIR=./data POD_ADMIN_PASSWORD=dev-password uvicorn app.main:app --reload

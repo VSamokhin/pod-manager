@@ -1,9 +1,16 @@
+# Weekly version checks for everything the project pins. Each ecosystem opens at most one
+# grouped PR for minor and patch updates; a major update gets its own PR so it can be
+# reviewed separately. Releases younger than the cooldown are skipped, so a broken or
+# hijacked release has time to be yanked before it reaches us.
 version: 2
 updates:
   - package-ecosystem: pip
     directory: /
     schedule:
       interval: weekly
+      day: monday
+    cooldown:
+      default-days: 3
     groups:
       python-minor-and-patch:
         update-types: [minor, patch]
@@ -13,6 +20,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      day: monday
+    cooldown:
+      default-days: 3
     groups:
       actions:
         patterns: ["*"]
@@ -22,10 +32,20 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      day: monday
+    groups:
+      base-image:
+        patterns: ["*"]
     labels: [dependencies, patch]
 
   - package-ecosystem: pre-commit
     directory: /
     schedule:
       interval: weekly
+      day: monday
+    cooldown:
+      default-days: 3
+    groups:
+      pre-commit-hooks:
+        patterns: ["*"]
     labels: [dependencies, ci, patch]

@@ -24,8 +24,8 @@ Every PR needs exactly one of these labels (checked in CI). Every push to `main`
 ## Local checks
 
 ```bash
-python -m venv .venv && . .venv/bin/activate
-pip install -r requirements-dev.txt
+python3.15 -m venv .venv && . .venv/bin/activate   # the Python version the image uses
+pip install -r requirements-dev.txt   # also provides mypy for the pre-commit hook
 pre-commit install            # pre-commit and pre-push hooks
 pre-commit run --all-files    # everything once
 ```
@@ -47,7 +47,9 @@ On commit: ruff (lint and format), mypy, bandit, codespell, gitleaks, hadolint, 
 | Release drafter | PR labels, exactly one version label |
 | OpenSSF Scorecard | supply-chain posture, weekly and on `main` |
 
-Actions are pinned to commit SHAs; Dependabot updates them, the Python packages, the base image and the pre-commit hooks weekly.
+Actions are pinned to commit SHAs. Dependabot checks the Python packages, the Actions, the base image and the pre-commit hooks every Monday and opens one grouped PR per ecosystem for minor and patch updates (major updates get their own PR). It waits three days after a release before proposing it. CI also re-runs on `main` every Monday, so newly published advisories show up in pip-audit and Trivy even without code changes.
+
+The Python version is named in the Dockerfile, `ci.yml` and `pyproject.toml`; `tests/test_versions.py` fails if they drift apart, for example when Dependabot proposes a new Python minor for the base image.
 
 ## Licences
 

@@ -65,11 +65,11 @@ class Image(Base):
     uploaded_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
-    uploaded_by: Mapped["User | None"] = relationship()
-    parent: Mapped["Image | None"] = relationship(remote_side="Image.id", back_populates="derived")
-    derived: Mapped[list["Image"]] = relationship(back_populates="parent")
-    template: Mapped["Template | None"] = relationship()
-    drop_links: Mapped[list["DropImage"]] = relationship(back_populates="image", cascade="all, delete-orphan")
+    uploaded_by: Mapped[User | None] = relationship()
+    parent: Mapped[Image | None] = relationship(remote_side="Image.id", back_populates="derived")
+    derived: Mapped[list[Image]] = relationship(back_populates="parent")
+    template: Mapped[Template | None] = relationship()
+    drop_links: Mapped[list[DropImage]] = relationship(back_populates="image", cascade="all, delete-orphan")
 
     @property
     def display_title(self) -> str:
@@ -108,8 +108,8 @@ class Drop(Base):
     planned_date: Mapped[str] = mapped_column(String(10), default="")  # YYYY-MM-DD, optional
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
-    state: Mapped["DropState | None"] = relationship()
-    items: Mapped[list["DropImage"]] = relationship(
+    state: Mapped[DropState | None] = relationship()
+    items: Mapped[list[DropImage]] = relationship(
         back_populates="drop", cascade="all, delete-orphan", order_by="DropImage.position"
     )
 
